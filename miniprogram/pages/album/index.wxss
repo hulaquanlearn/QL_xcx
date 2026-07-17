@@ -1,0 +1,19 @@
+page { background: #F6F4EF; }
+.album-page { padding-bottom: calc(150rpx + env(safe-area-inset-bottom)); }
+.page-intro { padding: 24rpx 4rpx 28rpx; }
+.page-kicker { display: block; color: #A27C6E; font-size: 18rpx; font-weight: 650; letter-spacing: 4rpx; }
+.page-title { display: block; margin-top: 10rpx; font-size: 42rpx; font-weight: 700; }
+.page-desc { display: block; margin-top: 10rpx; color: #858981; font-size: 24rpx; }
+.date-section { display: flex; margin: 26rpx 2rpx 14rpx; align-items: baseline; justify-content: space-between; }
+.date-title { color: #4B504A; font-size: 27rpx; font-weight: 650; }
+.date-count { color: #989A93; font-size: 20rpx; }
+.date-photos { display: grid; grid-template-columns: repeat(3,1fr); gap: 8rpx; overflow: hidden; border-radius: 26rpx; }
+.photo-item { position: relative; height: 214rpx; overflow: hidden; background: #E3DFD7; }
+.photo-img { width: 100%; height: 100%; }
+.photo-selected .photo-img { opacity: .55; }
+.photo-checkbox { position: absolute; top: 12rpx; right: 12rpx; z-index: 3; display: flex; width: 40rpx; height: 40rpx; align-items: center; justify-content: center; border: 2rpx solid rgba(255,255,255,.9); border-radius: 50%; background: rgba(32,35,31,.24); color: #fff; font-size: 22rpx; }
+.photo-checkbox.checked { background: #2D332F; }
+.action-buttons { position: fixed; right: 28rpx; bottom: calc(24rpx + env(safe-area-inset-bottom)); left: 28rpx; z-index: 20; display: grid; padding: 12rpx; grid-template-columns: 1fr 2fr; gap: 12rpx; border: 1rpx solid #DED9D0; border-radius: 30rpx; background: rgba(255,255,255,.95); box-shadow: 0 16rpx 50rpx rgba(54,49,42,.14); }
+.action-btn { height: 78rpx; border-radius: 20rpx; color: #656A64; font-size: 25rpx; font-weight: 600; line-height: 78rpx; text-align: center; }
+.upload-btn { background: #2D332F; color: #fff; }
+.batch-delete-btn { position: fixed; right: 32rpx; bottom: calc(138rpx + env(safe-area-inset-bottom)); left: 32rpx; z-index: 21; height: 80rpx; border-radius: 20rpx; background: #A6534B; color: #fff; font-size: 25rpx; line-height: 80rpx; text-align: center; }

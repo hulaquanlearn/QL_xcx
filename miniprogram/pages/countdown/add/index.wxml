@@ -1,0 +1,70 @@
+<!--pages/countdown/add/index.wxml-->
+<view class="container">
+  <!-- 表单 -->
+  <view class="form">
+    <!-- 标题输入 -->
+    <view class="form-item">
+      <text class="form-label">标题</text>
+      <view class="form-input-wrapper">
+        <input 
+          class="form-input" 
+          placeholder="请输入纪念日标题" 
+          value="{{title}}" 
+          bindinput="onTitleInput"
+        />
+      </view>
+    </view>
+
+    <!-- 日期选择 -->
+    <view class="form-item">
+      <text class="form-label">日期</text>
+      <view class="form-input-wrapper">
+        <picker 
+          class="form-picker" 
+          mode="date" 
+          value="{{date}}" 
+          start="2000-01-01" 
+          end="2100-12-31" 
+          bindchange="onDateChange"
+        >
+          <view class="picker-content">
+            <text class="picker-text">{{dateText || '请选择日期'}}</text>
+            <text class="picker-arrow">›</text>
+          </view>
+        </picker>
+      </view>
+    </view>
+
+    <!-- 描述输入 -->
+    <view class="form-item">
+      <text class="form-label">描述</text>
+      <view class="form-input-wrapper">
+        <textarea 
+          class="form-textarea" 
+          placeholder="请输入纪念日描述（可选）" 
+          value="{{description}}" 
+          bindinput="onDescriptionInput"
+          maxlength="200"
+        />
+      </view>
+    </view>
+
+    <view class="form-item switch-item">
+      <view>
+        <text class="form-label compact">设为共同起始日</text>
+        <text class="form-help">首页将从这个日期计算共同天数</text>
+      </view>
+      <switch checked="{{isAnniversary}}" color="#728277" bindchange="toggleAnniversary"/>
+    </view>
+
+    <!-- 保存按钮 -->
+    <button class="save-btn" bindtap="saveCountdown">
+      {{isEdit ? '保存修改' : '保存'}}
+    </button>
+  </view>
+
+  <!-- 加载提示 -->
+  <view wx:if="{{loading}}" class="loading-state">
+    <text class="loading-text">保存中...</text>
+  </view>
+</view>

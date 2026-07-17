@@ -1,0 +1,48 @@
+<!--pages/countdown/detail/index.wxml-->
+<view class="container">
+
+  <!-- 纪念日详情卡片 -->
+  <view class="detail-card">
+    <view class="card-header">
+      <text class="countdown-title">{{countdown.title}}</text>
+      <text class="countdown-date">{{countdown.dateText}}</text>
+    </view>
+    
+    <view class="countdown-info">
+      <view class="info-item important">
+        <text class="info-label">已持续天数：</text>
+        <text class="info-value">{{daysPassed}}</text>
+      </view>
+      <view class="info-item important">
+        <text class="info-label">倒计日期：</text>
+        <text class="info-value">{{daysThisYear}}</text>
+      </view>
+      <view class="info-item" wx:if="{{countdown.description}}">
+        <text class="info-label">描述：</text>
+        <text class="info-value">{{countdown.description}}</text>
+      </view>
+      <view class="info-item">
+        <text class="info-label">创建人：</text>
+        <text class="info-value">{{countdown.creator}}</text>
+      </view>
+      <view class="info-item">
+        <text class="info-label">创建时间：</text>
+        <text class="info-value">{{countdown.createTimeText}}</text>
+      </view>
+    </view>
+    
+    <view class="card-footer">
+      <view class="action-btn edit-btn" bindtap="editCountdown">
+        <text class="btn-text">编辑</text>
+      </view>
+      <view class="action-btn delete-btn" bindtap="deleteCountdown">
+        <text class="btn-text">删除</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 加载提示 -->
+  <view wx:if="{{loading}}" class="loading-state">
+    <text class="loading-text">加载中...</text>
+  </view>
+</view>

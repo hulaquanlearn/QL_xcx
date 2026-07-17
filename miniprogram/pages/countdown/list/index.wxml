@@ -1,0 +1,16 @@
+<view class="container countdown-page">
+  <view class="page-intro"><text class="page-kicker">MILESTONES</text><text class="page-title">值得记住的日子</text><text class="page-desc">重要的不是提醒，而是每次想起都有意义。</text></view>
+  <view class="stats-card" wx:if="{{countdowns.length > 0}}"><view class="stat-item"><text class="stat-number">{{countdowns.length}}</text><text class="stat-label">全部</text></view><view class="stat-item"><text class="stat-number">{{topCount}}</text><text class="stat-label">首页展示</text></view><view class="stat-item"><text class="stat-number">{{upcomingCount}}</text><text class="stat-label">30 天内</text></view></view>
+  <view class="countdown-list" wx:if="{{countdowns.length > 0}}">
+    <view wx:for="{{countdowns}}" wx:key="_id" class="countdown-item-container">
+      <view class="countdown-item {{item.isTop ? 'is-top' : ''}}" style="transform: translateX({{item.slide ? '-120rpx' : '0'}})" bindtap="goToDetail" data-id="{{item._id}}" bindlongpress="longPressDelete" bindtouchstart="touchStart" data-index="{{index}}" bindtouchmove="touchMove" bindtouchend="touchEnd">
+        <view class="countdown-copy"><view class="title-line"><text class="countdown-title">{{item.title}}</text><text wx:if="{{item.isTop}}" class="top-badge">首页</text></view><text class="countdown-date">{{item.dateText}}</text></view>
+        <view class="countdown-days-box"><text class="days-number">{{item.daysNum}}</text><text class="days-unit">{{item.daysUnit}}</text></view>
+      </view>
+      <view class="countdown-slide-actions"><view class="slide-action-top-btn" catchtap="toggleHomeDisplay" data-id="{{item._id}}">{{item.isTop ? '取消' : '首页'}}</view></view>
+    </view>
+  </view>
+  <view wx:if="{{countdowns.length === 0 && !loading}}" class="empty-state"><view class="empty-icon">日</view><text class="empty-text">还没有纪念日</text><text class="empty-subtext">添加一个对你们有意义的日期</text></view>
+  <view wx:if="{{loading}}" class="loading-state"><view class="loading-spinner"></view><text class="loading-text">正在加载</text></view>
+  <view class="floating-add-btn" bindtap="goToAdd">＋</view>
+</view>

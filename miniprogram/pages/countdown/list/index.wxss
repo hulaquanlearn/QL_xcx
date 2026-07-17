@@ -1,0 +1,26 @@
+page { background: #F6F4EF; }
+.countdown-page { padding-bottom: calc(140rpx + env(safe-area-inset-bottom)); }
+.page-intro { padding: 24rpx 4rpx 34rpx; }
+.page-kicker { display: block; color: #A27C6E; font-size: 18rpx; font-weight: 650; letter-spacing: 4rpx; }
+.page-title { display: block; margin-top: 10rpx; font-size: 42rpx; font-weight: 700; }
+.page-desc { display: block; margin-top: 10rpx; color: #858981; font-size: 24rpx; }
+.stats-card { display: grid; padding: 24rpx 10rpx; grid-template-columns: repeat(3,1fr); border: 1rpx solid #E2DED5; border-radius: 28rpx; background: #fff; }
+.stat-item { text-align: center; border-right: 1rpx solid #EEEAE2; }
+.stat-item:last-child { border-right: 0; }
+.stat-number { display: block; font-size: 34rpx; font-weight: 700; }
+.stat-label { display: block; margin-top: 4rpx; color: #93968F; font-size: 21rpx; }
+.countdown-list { margin-top: 24rpx; }
+.countdown-item-container { position: relative; margin-bottom: 16rpx; overflow: hidden; border-radius: 28rpx; }
+.countdown-item { position: relative; z-index: 2; display: flex; min-height: 126rpx; padding: 26rpx 28rpx; align-items: center; border: 1rpx solid #E3DFD6; border-radius: 28rpx; background: #fff; transition: transform .24s ease; }
+.countdown-item.is-top { border-color: #D6C6BC; background: #FCF8F4; }
+.countdown-copy { flex: 1; min-width: 0; }
+.title-line { display: flex; align-items: center; }
+.countdown-title { max-width: 390rpx; overflow: hidden; color: #353934; font-size: 29rpx; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.top-badge { margin-left: 12rpx; padding: 4rpx 10rpx; border-radius: 999rpx; background: #E9DFD8; color: #8C5B49; font-size: 18rpx; }
+.countdown-date { display: block; margin-top: 8rpx; color: #92958E; font-size: 22rpx; }
+.countdown-days-box { min-width: 116rpx; text-align: right; }
+.days-number { color: #B7654D; font-size: 42rpx; font-weight: 720; }
+.days-unit { margin-left: 5rpx; color: #9A8A82; font-size: 20rpx; }
+.countdown-slide-actions { position: absolute; top: 0; right: 0; bottom: 0; display: flex; width: 120rpx; align-items: stretch; }
+.slide-action-top-btn { display: flex; flex: 1; align-items: center; justify-content: center; border-radius: 0 28rpx 28rpx 0; background: #728277; color: #fff; font-size: 22rpx; }
+.floating-add-btn { position: fixed; right: 34rpx; bottom: calc(34rpx + env(safe-area-inset-bottom)); z-index: 20; display: flex; width: 94rpx; height: 94rpx; align-items: center; justify-content: center; border-radius: 30rpx; background: #2D332F; color: #fff; font-size: 42rpx; box-shadow: 0 16rpx 40rpx rgba(45,51,47,.25); }

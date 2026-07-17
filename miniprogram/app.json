@@ -1,0 +1,21 @@
+{
+  "pages": [
+    "pages/index/index",
+    "pages/countdown/list/index",
+    "pages/countdown/add/index",
+    "pages/countdown/detail/index",
+    "pages/album/index",
+    "pages/food/index",
+    "pages/activity/index",
+    "pages/mine/index"
+  ],
+  "window": {
+    "navigationBarBackgroundColor": "#F6F4EF",
+    "navigationBarTextStyle": "black",
+    "backgroundColor": "#F6F4EF",
+    "backgroundTextStyle": "dark"
+  },
+  "style": "v2",
+  "sitemapLocation": "sitemap.json",
+  "lazyCodeLoading": "requiredComponents"
+}

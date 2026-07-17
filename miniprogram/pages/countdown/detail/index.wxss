@@ -1,0 +1,16 @@
+page { background: #F6F4EF; }
+.container { padding: 32rpx; }
+.detail-card { padding: 38rpx 32rpx 30rpx; border: 1rpx solid #E2DED5; border-radius: 36rpx; background: #fff; box-shadow: 0 16rpx 50rpx rgba(54,49,42,.08); }
+.card-header { padding-bottom: 30rpx; border-bottom: 1rpx solid #EEEAE2; }
+.countdown-title { display: block; color: #2B2F2A; font-size: 42rpx; font-weight: 700; }
+.countdown-date { display: block; margin-top: 10rpx; color: #878B83; font-size: 24rpx; }
+.countdown-info { padding: 26rpx 0 12rpx; }
+.info-item { display: flex; min-height: 84rpx; padding: 18rpx 4rpx; align-items: flex-start; border-bottom: 1rpx solid #F0ECE5; }
+.info-label { width: 160rpx; flex-shrink: 0; color: #92958E; font-size: 23rpx; }
+.info-value { flex: 1; color: #444944; font-size: 25rpx; line-height: 1.6; }
+.info-item.important { border-bottom: 0; }
+.info-item.important .info-value { color: #B7654D; font-size: 34rpx; font-weight: 700; }
+.card-footer { display: grid; margin-top: 24rpx; padding-top: 24rpx; grid-template-columns: repeat(2,1fr); gap: 14rpx; border-top: 1rpx solid #EEEAE2; }
+.action-btn { height: 84rpx; border-radius: 18rpx; font-size: 25rpx; font-weight: 600; line-height: 84rpx; text-align: center; }
+.edit-btn { background: #2D332F; color: #fff; }
+.delete-btn { background: #F4E9E6; color: #A6534B; }

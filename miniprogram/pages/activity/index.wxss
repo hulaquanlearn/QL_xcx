@@ -1,0 +1,33 @@
+page { background: #F6F4EF; }
+.activity-page { padding-bottom: calc(140rpx + env(safe-area-inset-bottom)); }
+.page-intro { padding: 24rpx 4rpx 34rpx; }
+.page-kicker, .modal-kicker { display: block; color: #A27C6E; font-size: 18rpx; font-weight: 650; letter-spacing: 4rpx; }
+.page-title { display: block; margin-top: 10rpx; color: #282C27; font-size: 42rpx; font-weight: 700; }
+.page-desc { display: block; margin-top: 10rpx; color: #858981; font-size: 24rpx; }
+.filter-card { display: grid; padding: 10rpx; grid-template-columns: repeat(3,1fr); border: 1rpx solid #E2DED5; border-radius: 26rpx; background: #fff; }
+.filter-item { padding: 18rpx 8rpx; border-radius: 18rpx; text-align: center; }
+.filter-item.active { background: #ECE8DF; }
+.filter-count { display: block; color: #343833; font-size: 30rpx; font-weight: 700; }
+.filter-label { display: block; margin-top: 2rpx; color: #92958E; font-size: 21rpx; }
+.filter-item.active .filter-label { color: #5E655E; font-weight: 600; }
+.tasks-container { margin-top: 24rpx; }
+.task-card { margin-bottom: 16rpx; overflow: hidden; border: 1rpx solid #E3DFD6; border-radius: 26rpx; background: #fff; }
+.task-card.completed { background: #F1F2EE; }
+.task-content { display: flex; min-height: 112rpx; padding: 24rpx; align-items: flex-start; }
+.task-checkbox { display: flex; width: 40rpx; height: 40rpx; margin-top: 2rpx; flex-shrink: 0; align-items: center; justify-content: center; border: 2rpx solid #B9BAB4; border-radius: 50%; color: #fff; font-size: 22rpx; }
+.task-checkbox.checked { border-color: #728277; background: #728277; }
+.task-copy { flex: 1; margin-left: 20rpx; }
+.task-title { display: block; color: #353934; font-size: 28rpx; font-weight: 600; }
+.completed .task-title { color: #94978F; text-decoration: line-through; }
+.task-desc, .task-meta { display: block; margin-top: 6rpx; color: #93968F; font-size: 22rpx; }
+.task-actions { display: flex; border-top: 1rpx solid #EEEAE2; }
+.action-btn { flex: 1; padding: 18rpx; color: #737871; font-size: 23rpx; text-align: center; }
+.action-btn.delete { color: #A5574F; border-left: 1rpx solid #EEEAE2; }
+.floating-add-btn { position: fixed; right: 34rpx; bottom: calc(34rpx + env(safe-area-inset-bottom)); z-index: 20; display: flex; width: 94rpx; height: 94rpx; align-items: center; justify-content: center; border-radius: 30rpx; background: #2D332F; color: #fff; font-size: 42rpx; box-shadow: 0 16rpx 40rpx rgba(45,51,47,.25); }
+.modal-overlay { position: fixed; inset: 0; z-index: 100; display: flex; padding: 32rpx; align-items: center; justify-content: center; background: rgba(35,38,34,.48); }
+.modal-content { width: 100%; padding: 40rpx 34rpx 30rpx; border-radius: 36rpx; background: #fff; }
+.modal-title { display: block; margin-top: 10rpx; font-size: 36rpx; font-weight: 700; }
+.modal-input { width: 100%; height: 96rpx; margin-top: 30rpx; padding: 0 24rpx; border: 1rpx solid #DED9D0; border-radius: 20rpx; background: #FAF9F6; font-size: 28rpx; }
+.modal-footer { display: grid; margin-top: 24rpx; grid-template-columns: repeat(2,1fr); gap: 14rpx; }
+.modal-btn { height: 86rpx; border-radius: 18rpx; background: #EFECE5; color: #666B65; line-height: 86rpx; text-align: center; }
+.modal-btn.confirm { background: #2D332F; color: #fff; }

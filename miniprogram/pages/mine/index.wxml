@@ -1,0 +1,54 @@
+<view class="container mine-page">
+  <view class="profile-card">
+    <view class="profile-main" bindtap="showEditProfileModal">
+      <view class="profile-avatar">
+        <image wx:if="{{userAvatar}}" src="{{userAvatar}}" mode="aspectFill"></image>
+        <text wx:else>{{userName[0] || '我'}}</text>
+      </view>
+      <view class="profile-info">
+        <text class="profile-name">{{userName || '我的'}}</text>
+        <text class="profile-desc">{{hasPartner ? '共享空间已连接' : '尚未绑定伴侣'}}</text>
+      </view>
+      <text class="edit-text">编辑</text>
+    </view>
+    <view wx:if="{{hasPartner}}" class="partner-row">
+      <view class="partner-avatar"><image wx:if="{{partnerAvatar}}" src="{{partnerAvatar}}" mode="aspectFill"></image><text wx:else>{{coupleInfo.name[0] || 'TA'}}</text></view>
+      <view class="partner-detail"><text class="partner-label">共同使用者</text><text class="partner-name">{{coupleInfo.name || '我的伴侣'}}</text></view>
+      <view class="connected-badge"><text class="status-dot"></text><text>已连接</text></view>
+    </view>
+  </view>
+
+  <view class="stats-card">
+    <view class="stat-item" bindtap="goToAlbum"><text class="stat-number">{{albumCount}}</text><text class="stat-label">照片</text></view>
+    <view class="stat-item" bindtap="goToCountdown"><text class="stat-number">{{countdownCount}}</text><text class="stat-label">纪念日</text></view>
+    <view class="stat-item" bindtap="goToOrders"><text class="stat-number {{pendingOrderCount > 0 ? 'highlight' : ''}}">{{pendingOrderCount}}</text><text class="stat-label">待接单</text></view>
+  </view>
+
+  <view class="menu-section" wx:if="{{!hasPartner}}">
+    <view class="section-heading"><text class="section-title">连接彼此</text><text class="section-note">二选一即可</text></view>
+    <view class="relation-actions">
+      <view class="relation-card" bindtap="showInviteCode"><text class="relation-index">01</text><text class="relation-title">邀请对方</text><text class="relation-desc">复制我的邀请码</text></view>
+      <view class="relation-card" bindtap="showBindModal"><text class="relation-index">02</text><text class="relation-title">绑定对方</text><text class="relation-desc">输入对方邀请码</text></view>
+    </view>
+  </view>
+
+  <view class="menu-section">
+    <text class="section-title">设置</text>
+    <view class="menu-list">
+      <view class="menu-item" bindtap="clearCache"><text class="menu-text">清理临时缓存</text><text class="menu-value">{{cacheSize}}</text><text class="menu-arrow">›</text></view>
+      <view class="menu-item logout-item" bindtap="logout"><text class="menu-text">退出登录</text><text class="menu-arrow">›</text></view>
+    </view>
+  </view>
+
+  <view wx:if="{{showInviteModal}}" class="modal-overlay" bindtap="closeInviteModal">
+    <view class="modal-content" catchtap="preventBubble"><text class="modal-kicker">INVITE CODE</text><text class="modal-title">邀请伴侣</text><text class="modal-desc">将邀请码私下发送给对方</text><view class="invite-code-box"><text class="invite-code">{{inviteCode}}</text></view><view class="modal-btn primary" bindtap="copyInviteCode">复制邀请码</view><view class="modal-btn" bindtap="closeInviteModal">稍后再说</view></view>
+  </view>
+
+  <view wx:if="{{showBindModal}}" class="modal-overlay" bindtap="closeBindModal">
+    <view class="modal-content" catchtap="preventBubble"><text class="modal-kicker">CONNECT</text><text class="modal-title">绑定伴侣</text><text class="modal-desc">输入对方的 8 位邀请码</text><input class="invite-input" type="text" placeholder="请输入邀请码" maxlength="8" value="{{inputInviteCode}}" bindinput="onInviteCodeInput"/><view class="modal-btn primary" bindtap="bindPartner">确认绑定</view><view class="modal-btn" bindtap="closeBindModal">取消</view></view>
+  </view>
+
+  <view wx:if="{{showEditModal}}" class="modal-overlay" bindtap="closeEditProfileModal">
+    <view class="modal-content" catchtap="preventBubble"><text class="modal-kicker">PROFILE</text><text class="modal-title">个人资料</text><view class="edit-form"><view class="edit-item"><text class="edit-label">昵称</text><input class="edit-input" type="text" placeholder="请输入昵称" value="{{editName}}" bindinput="onEditNameInput" maxlength="10"/></view><view class="edit-item"><text class="edit-label">身份</text><view class="gender-options"><view class="gender-option {{editGender === 'male' ? 'active' : ''}}" bindtap="selectGender" data-gender="male">男生</view><view class="gender-option {{editGender === 'female' ? 'active' : ''}}" bindtap="selectGender" data-gender="female">女生</view><view class="gender-option {{editGender === 'other' ? 'active' : ''}}" bindtap="selectGender" data-gender="other">不设置</view></view></view></view><view class="modal-btn primary" bindtap="saveProfile">保存</view><view class="modal-btn" bindtap="closeEditProfileModal">取消</view></view>
+  </view>
+</view>

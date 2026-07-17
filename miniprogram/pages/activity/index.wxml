@@ -1,0 +1,25 @@
+<view class="container activity-page">
+  <view class="page-intro"><text class="page-kicker">TOGETHER LIST</text><text class="page-title">一起完成的事</text><text class="page-desc">小计划不必隆重，记下来就更容易发生。</text></view>
+
+  <view class="filter-card">
+    <view class="filter-item {{currentFilter === 'all' ? 'active' : ''}}" bindtap="switchFilter" data-filter="all"><text class="filter-count">{{tasksList.length}}</text><text class="filter-label">全部</text></view>
+    <view class="filter-item {{currentFilter === 'pending' ? 'active' : ''}}" bindtap="switchFilter" data-filter="pending"><text class="filter-count">{{pendingCount}}</text><text class="filter-label">待完成</text></view>
+    <view class="filter-item {{currentFilter === 'completed' ? 'active' : ''}}" bindtap="switchFilter" data-filter="completed"><text class="filter-count">{{completedCount}}</text><text class="filter-label">已完成</text></view>
+  </view>
+
+  <view class="tasks-container">
+    <view wx:for="{{filteredTasksList}}" wx:key="id" class="task-card {{item.completed ? 'completed' : ''}} fade-in">
+      <view class="task-content" bindtap="toggleTaskStatus" data-id="{{item.id}}">
+        <view class="task-checkbox {{item.completed ? 'checked' : ''}}"><text wx:if="{{item.completed}}">✓</text></view>
+        <view class="task-copy"><text class="task-title">{{item.title}}</text><text class="task-desc" wx:if="{{item.description}}">{{item.description}}</text><text class="task-meta" wx:if="{{item.deadline}}">截止 {{item.deadline}}</text></view>
+      </view>
+      <view class="task-actions"><view class="action-btn" bindtap="editTask" data-id="{{item.id}}">编辑</view><view class="action-btn delete" bindtap="deleteTask" data-id="{{item.id}}">删除</view></view>
+    </view>
+  </view>
+
+  <view wx:if="{{filteredTasksList.length === 0 && !loading}}" class="empty-state"><view class="empty-icon">＋</view><text class="empty-title">{{currentFilter === 'all' ? '清单还是空的' : currentFilter === 'completed' ? '还没有完成记录' : '暂时没有待办'}}</text><text class="empty-desc">{{currentFilter === 'all' ? '添加一件最近想一起完成的小事' : '切换分类看看其他内容'}}</text></view>
+  <view class="floating-add-btn" bindtap="addTask"><text>＋</text></view>
+  <view wx:if="{{loading}}" class="loading-state"><view class="loading-spinner"></view><text class="loading-text">正在加载</text></view>
+
+  <view wx:if="{{showModal}}" class="modal-overlay" bindtap="closeModal"><view class="modal-content" catchtap="preventBubble"><text class="modal-kicker">{{editingTaskId ? 'EDIT ITEM' : 'NEW ITEM'}}</text><text class="modal-title">{{modalTitle}}</text><input class="modal-input" type="text" placeholder="例如：周末去看展" value="{{modalValue}}" focus="{{showModal}}" bindinput="onModalInput"/><view class="modal-footer"><view class="modal-btn cancel" bindtap="closeModal">取消</view><view class="modal-btn confirm" bindtap="confirmModal">保存</view></view></view></view>
+</view>

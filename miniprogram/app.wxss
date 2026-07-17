@@ -1,0 +1,60 @@
+/* 全局视觉：暖中性、低饱和、克制的生活方式感 */
+page {
+  --primary-color: #B7654D;
+  --primary-light: #D8A08E;
+  --primary-dark: #8D4937;
+  --secondary-color: #728277;
+  --bg-color: #F6F4EF;
+  --bg-soft: #ECE8DF;
+  --bg-card: #FFFFFF;
+  --text-primary: #252824;
+  --text-secondary: #656A64;
+  --text-light: #92968F;
+  --text-white: #FFFFFF;
+  --border-color: #E7E3DA;
+  --shadow-color: rgba(54, 49, 42, .08);
+  --danger-color: #B6544B;
+  --success-color: #65796B;
+  --radius-sm: 16rpx;
+  --radius-md: 24rpx;
+  --radius-lg: 36rpx;
+  --font-xs: 22rpx;
+  --font-sm: 24rpx;
+  --font-md: 28rpx;
+  --font-lg: 34rpx;
+  --font-xl: 46rpx;
+  min-height: 100vh;
+  background: var(--bg-color);
+  color: var(--text-primary);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif;
+  font-size: var(--font-md);
+  line-height: 1.5;
+}
+
+view, text, image, input, textarea, button { box-sizing: border-box; }
+.container { width: 100%; min-height: 100vh; padding: 32rpx; }
+button { margin: 0; padding: 0; background: transparent; line-height: 1; border-radius: var(--radius-md); }
+button::after { border: 0; }
+image { display: block; }
+
+.section-title { display: block; margin-bottom: 20rpx; color: var(--text-primary); font-size: 30rpx; font-weight: 650; letter-spacing: 1rpx; }
+.card { margin-bottom: 24rpx; padding: 28rpx; border: 1rpx solid var(--border-color); border-radius: var(--radius-lg); background: var(--bg-card); box-shadow: 0 10rpx 30rpx var(--shadow-color); }
+.btn-primary { padding: 24rpx 36rpx; border-radius: var(--radius-md); background: var(--primary-color); color: #fff; font-size: 28rpx; font-weight: 650; text-align: center; }
+.btn-secondary { padding: 22rpx 34rpx; border: 1rpx solid var(--border-color); border-radius: var(--radius-md); background: #fff; color: var(--text-primary); font-size: 28rpx; font-weight: 600; text-align: center; }
+
+.empty-state { display: flex; min-height: 420rpx; padding: 80rpx 40rpx; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+.empty-icon { display: flex; width: 88rpx; height: 88rpx; margin-bottom: 28rpx; align-items: center; justify-content: center; border-radius: 50%; background: var(--bg-soft); color: var(--text-secondary); font-size: 32rpx; }
+.empty-text, .empty-title { margin-bottom: 10rpx; color: var(--text-primary); font-size: 30rpx; font-weight: 650; }
+.empty-subtext, .empty-desc { max-width: 500rpx; color: var(--text-light); font-size: 24rpx; line-height: 1.7; }
+
+.loading-state { display: flex; padding: 60rpx; flex-direction: column; align-items: center; justify-content: center; }
+.loading-spinner { width: 48rpx; height: 48rpx; border: 4rpx solid var(--border-color); border-top-color: var(--primary-color); border-radius: 50%; animation: spin .8s linear infinite; }
+.loading-text { margin-top: 16rpx; color: var(--text-light); font-size: 24rpx; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(12rpx); } to { opacity: 1; transform: translateY(0); } }
+.fade-in, .slide-up { animation: fadeIn .24s ease both; }
+
+.text-ellipsis { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.flex-row { display: flex; align-items: center; }
+.flex-column { display: flex; flex-direction: column; }
+.flex-center { display: flex; align-items: center; justify-content: center; }

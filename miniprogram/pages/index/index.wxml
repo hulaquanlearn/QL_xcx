@@ -1,0 +1,92 @@
+<view class="container home-page">
+  <view wx:if="{{!isLoggedIn}}" class="login-shell">
+    <view class="login-brand">
+      <view class="brand-mark"><text>间</text></view>
+      <text class="login-eyebrow">OUR SPACE</text>
+      <text class="login-title">两个人的日常</text>
+      <text class="login-subtitle">把值得记住的事，安静地放在一起</text>
+    </view>
+
+    <view class="login-panel">
+      <view class="field">
+        <text class="field-label">账号</text>
+        <input class="login-input" type="text" placeholder="请输入账号" placeholder-class="input-placeholder" value="{{account}}" bindinput="onAccountInput" maxlength="20" confirm-type="next"/>
+      </view>
+      <view class="field">
+        <text class="field-label">密码</text>
+        <input class="login-input" password placeholder="请输入密码" placeholder-class="input-placeholder" value="{{password}}" bindinput="onPasswordInput" maxlength="32" confirm-type="done" bindconfirm="login"/>
+      </view>
+      <button class="login-btn" bindtap="login">进入空间</button>
+      <text class="login-hint">账号由管理员统一开通</text>
+    </view>
+    <text class="login-footnote">仅用于你和重要的人共享</text>
+  </view>
+
+  <view wx:else class="logged-in-container">
+    <view class="home-header">
+      <view>
+        <text class="home-eyebrow">OUR DAYS</text>
+        <text class="welcome-text">一起生活，慢慢记录</text>
+      </view>
+      <view class="profile-entry" bindtap="goToMine"><text>我的</text></view>
+    </view>
+
+    <view wx:if="{{!coupleId}}" class="setup-card">
+      <text class="setup-label">开始之前</text>
+      <text class="setup-title">还差一步，就能共享空间</text>
+      <text class="setup-desc">到“我的”查看邀请码，或输入对方的邀请码完成绑定。</text>
+      <view class="setup-action" bindtap="goToMine">去绑定伴侣</view>
+    </view>
+
+    <block wx:else>
+      <view class="days-card slide-up" bindtap="goToAnniversary">
+        <view class="days-card-head">
+          <text class="days-label">{{pinnedAnniversary ? pinnedAnniversary.title : '共同生活'}}</text>
+          <text class="days-link">查看纪念日</text>
+        </view>
+        <view class="pair-row">
+          <view class="avatar" data-gender="male" catchtap="uploadAvatar">
+            <image wx:if="{{maleAvatar}}" class="avatar-image" src="{{maleAvatar}}" mode="aspectFill"></image>
+            <text wx:else class="avatar-fallback">A</text>
+          </view>
+          <view class="days-center">
+            <text class="days-number">{{loveDays}}</text>
+            <text class="days-unit">天</text>
+            <text class="days-date" wx:if="{{pinnedAnniversary}}">始于 {{pinnedAnniversary.date}}</text>
+          </view>
+          <view class="avatar" data-gender="female" catchtap="uploadAvatar">
+            <image wx:if="{{femaleAvatar}}" class="avatar-image" src="{{femaleAvatar}}" mode="aspectFill"></image>
+            <text wx:else class="avatar-fallback">B</text>
+          </view>
+        </view>
+        <text class="avatar-tip">轻触头像可以更换照片</text>
+      </view>
+
+      <view class="quick-section">
+        <view class="section-heading">
+          <text class="section-title">一起做的事</text>
+          <text class="section-note">日常入口</text>
+        </view>
+        <view class="quick-grid">
+          <view class="quick-item" bindtap="goToAnniversary"><image class="quick-icon-img" src="/images/icons/纪念日.png" mode="aspectFit"></image><text class="quick-text">纪念日</text><text class="quick-desc">记住重要日期</text></view>
+          <view class="quick-item" bindtap="goToAlbum"><image class="quick-icon-img" src="/images/icons/相册.png" mode="aspectFit"></image><text class="quick-text">相册</text><text class="quick-desc">收藏共同瞬间</text></view>
+          <view class="quick-item" bindtap="goToFood"><image class="quick-icon-img" src="/images/icons/点菜.png" mode="aspectFit"></image><text class="quick-text">菜单</text><text class="quick-desc">今天吃什么</text></view>
+          <view class="quick-item" bindtap="goToActivity"><image class="quick-icon-img" src="/images/icons/必做.png" mode="aspectFit"></image><text class="quick-text">清单</text><text class="quick-desc">一起完成计划</text></view>
+        </view>
+      </view>
+
+      <view class="album-section" bindtap="goToAlbum">
+        <view class="section-heading"><text class="section-title">最近照片</text><text class="section-link">全部</text></view>
+        <view wx:if="{{albumList.length > 0}}" class="album-grid">
+          <view wx:for="{{albumList}}" wx:key="_id" class="photo-item"><image class="photo-img" src="{{item.imgUrl}}" mode="aspectFill" binderror="imgError"></image></view>
+        </view>
+        <view wx:else class="album-empty"><text class="album-empty-title">还没有照片</text><text class="album-empty-desc">从一张喜欢的照片开始</text></view>
+      </view>
+    </block>
+
+    <view class="bottom-nav">
+      <view class="nav-item active"><image class="nav-icon" src="/images/icons/首页.png" mode="aspectFit"></image><text>首页</text></view>
+      <view class="nav-item" bindtap="goToMine"><image class="nav-icon" src="/images/icons/我的.png" mode="aspectFit"></image><text>我的</text></view>
+    </view>
+  </view>
+</view>

@@ -1,0 +1,331 @@
+<!--pages/food/index.wxml-->
+<wxs module="mealUtil">
+  var mealTypes = [
+    { value: 'breakfast', label: '早餐', icon: '早' },
+    { value: 'lunch', label: '午餐', icon: '午' },
+    { value: 'dinner', label: '晚餐', icon: '晚' },
+    { value: 'snack', label: '零食', icon: '食' }
+  ];
+
+  function getMealIcon(mealType) {
+    for (var i = 0; i < mealTypes.length; i++) {
+      if (mealTypes[i].value === mealType) {
+        return mealTypes[i].icon;
+      }
+    }
+    return '餐';
+  }
+
+  function getMealLabel(mealType) {
+    for (var i = 0; i < mealTypes.length; i++) {
+      if (mealTypes[i].value === mealType) {
+        return mealTypes[i].label;
+      }
+    }
+    return '用餐';
+  }
+
+  module.exports = {
+    getMealIcon: getMealIcon,
+    getMealLabel: getMealLabel
+  };
+</wxs>
+
+<wxs module="dishUtil">
+  function isDishSelected(selectedDishes, menuId, dishName) {
+    if (!selectedDishes || selectedDishes.length === 0) {
+      return false;
+    }
+    for (var i = 0; i < selectedDishes.length; i++) {
+      if (selectedDishes[i].menuId === menuId && selectedDishes[i].name === dishName) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  module.exports = {
+    isDishSelected: isDishSelected
+  };
+</wxs>
+
+<view class="container">
+
+  <!-- 功能选项卡 -->
+  <view class="tabs">
+    <view 
+      class="tab-item {{activeTab === 'upload' ? 'active' : ''}}" 
+      bindtap="switchTab" 
+      data-tab="upload"
+    >
+      <text class="tab-index">01</text>
+      <text class="tab-text">上传菜单</text>
+    </view>
+    <view 
+      class="tab-item {{activeTab === 'order' ? 'active' : ''}}" 
+      bindtap="switchTab" 
+      data-tab="order"
+    >
+      <text class="tab-index">02</text>
+      <text class="tab-text">我要点菜</text>
+    </view>
+    <view 
+      class="tab-item {{activeTab === 'orders' ? 'active' : ''}}" 
+      bindtap="switchTab" 
+      data-tab="orders"
+    >
+      <text class="tab-index">03</text>
+      <text class="tab-text">订单列表</text>
+    </view>
+  </view>
+
+  <!-- 上传菜单 -->
+  <view wx:if="{{activeTab === 'upload'}}" class="upload-section">
+    <view class="section-header">
+      <text class="section-title">管理菜单</text>
+      <view class="header-right" wx:if="{{editingMenu}}">
+        <text class="section-subtitle">编辑中</text>
+      </view>
+    </view>
+    
+    <!-- 菜单选择器（合并下拉框和新建按钮） -->
+    <view class="card">
+      <text class="card-title">菜单</text>
+      <view class="menu-select-combined">
+        <picker bindchange="selectExistingMenu" value="{{menuIndex}}" range="{{menus}}" range-key="name" class="menu-picker-combined">
+          <view class="picker-box-combined">
+            <text wx:if="{{editingMenu}}" class="picker-text">{{editingMenu.name}}</text>
+            <text wx:elif="{{menuName}}" class="picker-text">{{menuName}}</text>
+            <text wx:else class="picker-placeholder">点击选择菜单</text>
+          </view>
+        </picker>
+        <view class="add-menu-btn-combined" bindtap="showCreateMenuModal">
+          <text>添加</text>
+        </view>
+      </view>
+      
+      <!-- 删除按钮（仅在编辑模式下显示） -->
+      <view wx:if="{{editingMenu}}" class="delete-menu-row" bindtap="deleteMenu">
+        <text class="delete-icon">删除</text>
+        <text class="delete-text">删除当前菜单</text>
+      </view>
+    </view>
+    
+    <view class="card">
+      <text class="card-title">添加菜品</text>
+      <view class="add-dish-box">
+        <input 
+          class="dish-name-input" 
+          placeholder="输入菜品名称" 
+          value="{{newDishName}}" 
+          bindinput="onNewDishNameInput"
+          bindconfirm="addDish"
+        />
+        <view class="add-dish-btn" bindtap="addDish">
+          <text>添加</text>
+        </view>
+      </view>
+      
+      <!-- 菜品列表 -->
+      <view wx:if="{{dishes.length > 0}}" class="dish-list">
+        <view wx:for="{{dishes}}" wx:key="id" class="dish-card">
+          <view class="dish-image-box" bindtap="chooseDishImage" data-index="{{index}}">
+            <image wx:if="{{item.image}}" class="dish-image" src="{{item.image}}" mode="aspectFill"></image>
+            <view wx:else class="dish-image-placeholder">
+              <text class="placeholder-icon">图</text>
+              <text class="placeholder-text">点击上传</text>
+            </view>
+          </view>
+          <view class="dish-info">
+            <text class="dish-name-text">{{item.name}}</text>
+            <view class="dish-actions">
+              <text class="dish-action delete" catchtap="removeDish" data-index="{{index}}">删除</text>
+            </view>
+          </view>
+        </view>
+      </view>
+      
+      <view wx:if="{{dishes.length === 0}}" class="empty-dishes">
+        <text class="empty-icon">菜</text>
+        <text class="empty-text">还没有添加菜品</text>
+      </view>
+    </view>
+    
+    <!-- 上传/更新菜单按钮 -->
+    <button wx:if="{{menuName}}" class="upload-btn {{editingMenu ? 'update' : ''}}" bindtap="uploadMenu" disabled="{{uploading}}">
+      <text>{{editingMenu ? '更新菜单' : '上传菜单'}}</text>
+    </button>
+  </view>
+
+  <!-- 点菜 -->
+  <view wx:if="{{activeTab === 'order'}}" class="order-section">
+    <view class="section-header">
+      <text class="section-title">今天吃什么</text>
+      <view class="header-right">
+        <text class="section-subtitle" wx:if="{{selectedDishes.length > 0}}">已选 {{selectedDishes.length}} 道菜</text>
+      </view>
+    </view>
+    
+    <!-- 选择餐别 -->
+    <view class="card">
+      <text class="card-title">选择餐别</text>
+      <view class="meal-type-selector">
+        <view 
+          wx:for="{{mealTypes}}" 
+          wx:key="value"
+          class="meal-type-item {{mealType === item.value ? 'active' : ''}}"
+          bindtap="selectMealType"
+          data-type="{{item.value}}"
+        >
+          <text class="meal-icon">{{item.icon}}</text>
+          <text class="meal-label">{{item.label}}</text>
+        </view>
+      </view>
+    </view>
+    
+    <!-- 所有菜单的菜品 -->
+    <view wx:if="{{menus.length > 0}}">
+      <view wx:for="{{menus}}" wx:key="_id" wx:for-item="menu" class="card menu-dishes-card">
+        <view class="card-header">
+          <text class="card-title">{{menu.name}}</text>
+          <text class="dish-count" wx:if="{{menu.dishes.length > 0}}">{{menu.dishes.length}} 道菜</text>
+        </view>
+        <view class="dish-grid" wx:if="{{menu.dishes.length > 0}}">
+          <view 
+            wx:for="{{menu.dishes}}" 
+            wx:for-item="dish"
+            wx:key="name" 
+            class="dish-item {{dishUtil.isDishSelected(selectedDishes, menu._id, dish.name) ? 'selected' : ''}}" 
+            bindtap="toggleDish" 
+            data-dish="{{dish}}"
+            data-menuid="{{menu._id}}"
+            data-menuname="{{menu.name}}"
+          >
+            <image wx:if="{{dish.image}}" class="dish-item-image" src="{{dish.image}}" mode="aspectFill"></image>
+            <view wx:else class="dish-item-no-image">
+              <text>菜</text>
+            </view>
+            <text class="dish-item-name">{{dish.name}}</text>
+            <view wx:if="{{dishUtil.isDishSelected(selectedDishes, menu._id, dish.name)}}" class="selected-mark">✓</view>
+          </view>
+        </view>
+        <view wx:else class="empty-dishes-small">
+          <text class="empty-text">该菜单暂无菜品</text>
+        </view>
+      </view>
+    </view>
+    
+    <view wx:if="{{menus.length === 0}}" class="empty-state">
+      <text class="empty-icon">单</text>
+      <text class="empty-text">暂无菜单</text>
+      <text class="empty-subtext">请先上传菜单</text>
+    </view>
+    
+    <button 
+      wx:if="{{menus.length > 0}}" 
+      class="order-btn {{selectedDishes.length > 0 ? 'active' : 'disabled'}}" 
+      bindtap="submitOrder"
+      disabled="{{selectedDishes.length === 0}}"
+    >
+      <text>{{selectedDishes.length > 0 ? '提交订单（' + selectedDishes.length + '道菜）' : '请选择菜品'}}</text>
+    </button>
+  </view>
+
+  <!-- 订单列表 -->
+  <view wx:if="{{activeTab === 'orders'}}" class="orders-section">
+    <view class="section-header">
+      <text class="section-title">订单</text>
+      <view class="header-right">
+        <text class="order-count" wx:if="{{orders.length > 0}}">共 {{orders.length}} 单</text>
+      </view>
+    </view>
+    <view wx:if="{{orders.length === 0}}" class="empty-orders">
+      <view class="empty-icon-box">
+        <text class="empty-icon">单</text>
+      </view>
+      <text class="empty-text">暂无订单</text>
+      <text class="empty-subtext">快去下单吧~</text>
+    </view>
+    <view wx:else class="orders-list">
+      <view wx:for="{{orders}}" wx:key="_id" class="order-card {{item.status === 'accepted' ? 'accepted' : ''}}">
+        <!-- 订单状态标签 -->
+        <view class="order-status-badge" wx:if="{{item.status === 'accepted'}}">
+          <text class="status-text">已接单</text>
+        </view>
+        
+        <view class="order-header">
+          <view class="order-meal-type">
+            <text class="meal-icon">{{mealUtil.getMealIcon(item.mealType)}}</text>
+            <text class="meal-label">{{mealUtil.getMealLabel(item.mealType)}}</text>
+          </view>
+          <view class="order-time-info">
+            <text class="order-date">{{item.formattedTime}}</text>
+          </view>
+        </view>
+        
+        <view class="order-menu-name">
+          <text class="menu-label">菜单</text>
+          <text class="menu-value">{{item.menuName}}</text>
+        </view>
+        
+        <view class="order-dishes">
+          <view wx:for="{{item.dishes}}" wx:for-item="dish" wx:key="name" class="order-dish-item">
+            <image wx:if="{{dish.image}}" class="order-dish-image" src="{{dish.image}}" mode="aspectFill"></image>
+            <view wx:else class="order-dish-no-image">菜</view>
+            <text class="order-dish-name">{{dish.name}}</text>
+          </view>
+        </view>
+        
+        <!-- 接单人信息 -->
+        <view class="accept-info" wx:if="{{item.status === 'accepted' && item.acceptedBy}}">
+          <view class="accept-avatar">TA</view>
+          <text class="accept-text">{{item.acceptedBy}} 已接单</text>
+        </view>
+        
+        <view class="order-footer">
+          <view class="order-by-info">
+            <text class="by-label">下单人</text>
+            <text class="by-name">{{item.orderBy || '我'}}</text>
+          </view>
+          <view class="order-actions">
+            <view 
+              wx:if="{{!item.status || item.status !== 'accepted'}}" 
+              class="accept-btn" 
+              catchtap="acceptOrder" 
+              data-id="{{item._id}}"
+            >
+              <text class="btn-text">接单</text>
+            </view>
+            <view class="delete-btn" catchtap="deleteOrder" data-id="{{item._id}}">
+              <text class="btn-icon">删除</text>
+            </view>
+          </view>
+        </view>
+      </view>
+    </view>
+  </view>
+
+</view>
+
+<!-- 新建菜单弹窗 -->
+<view class="modal-mask" wx:if="{{showMenuModal}}" bindtap="closeMenuModal"></view>
+<view class="modal-content" wx:if="{{showMenuModal}}">
+  <view class="modal-header">
+      <text class="modal-title">新建菜单</text>
+    <view class="modal-close" bindtap="closeMenuModal">×</view>
+  </view>
+  <view class="modal-body">
+    <text class="modal-label">菜单名称</text>
+    <input 
+      class="modal-input" 
+      placeholder="请输入菜单名称" 
+      value="{{modalMenuName}}" 
+      bindinput="onModalMenuNameInput"
+      focus="{{showMenuModal}}"
+    />
+  </view>
+  <view class="modal-footer">
+    <view class="modal-btn cancel" bindtap="closeMenuModal">取消</view>
+    <view class="modal-btn confirm" bindtap="confirmCreateMenu">确定</view>
+  </view>
+</view>

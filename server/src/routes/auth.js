@@ -1,0 +1,6 @@
+const express=require('express'); const rateLimit=require('express-rate-limit');
+const {pool}=require('../db'); const {ApiError,asyncHandler}=require('../utils'); const {verifyPassword}=require('../password'); const {publicUser,publicPartner,createSession,requireAuth}=require('../auth');
+const router=express.Router(); const limiter=rateLimit({windowMs:15*60*1000,limit:10,message:{success:false,msg:'尝试次数过多，请稍后再试'}});
+router.post('/login',limiter,asyncHandler(async(req,res)=>{const account=String(req.body.account||'').trim().toLowerCase();const [rows]=await pool.query('SELECT u.*,p.id partner_id,p.name partner_name,p.gender partner_gender FROM users u LEFT JOIN users p ON p.couple_id=u.couple_id AND p.id<>u.id WHERE u.account=? LIMIT 1',[account]);if(!rows[0]||!await verifyPassword(String(req.body.password||''),rows[0].password_hash))throw new ApiError(401,'账号或密码错误');const token=await createSession(rows[0].id);res.json({success:true,data:{token,user:publicUser(rows[0]),partner:publicPartner(rows[0])}});}));
+router.get('/me',requireAuth,(req,res)=>res.json({success:true,data:{user:req.user,partner:publicPartner(req.userRow)}})); router.post('/logout',requireAuth,asyncHandler(async(req,res)=>{await pool.query('DELETE FROM sessions WHERE id=?',[req.sessionId]);res.json({success:true,data:null});}));
+module.exports=router;

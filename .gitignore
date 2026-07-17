@@ -1,0 +1,10 @@
+node_modules/
+server/node_modules/
+server/.env
+coverage/
+.idea/
+.agents/
+.codex/
+project.private.config.json
+release/
+*.log
