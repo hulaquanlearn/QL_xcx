@@ -11,9 +11,19 @@
     <view wx:for="{{filteredTasksList}}" wx:key="id" class="task-card {{item.completed ? 'completed' : ''}} fade-in">
       <view class="task-content" bindtap="toggleTaskStatus" data-id="{{item.id}}">
         <view class="task-checkbox {{item.completed ? 'checked' : ''}}"><text wx:if="{{item.completed}}">✓</text></view>
-        <view class="task-copy"><text class="task-title">{{item.title}}</text><text class="task-desc" wx:if="{{item.description}}">{{item.description}}</text><text class="task-meta" wx:if="{{item.deadline}}">截止 {{item.deadline}}</text></view>
+        <view class="task-copy"><text class="task-title">{{item.title}}</text><text class="task-desc" wx:if="{{item.description}}">{{item.description}}</text></view>
       </view>
-      <view class="task-actions"><view class="action-btn" bindtap="editTask" data-id="{{item.id}}">编辑</view><view class="action-btn delete" bindtap="deleteTask" data-id="{{item.id}}">删除</view></view>
+      <view wx:if="{{item.completed && item.photoCount}}" class="task-photos">
+        <view class="task-photo-grid">
+          <image wx:for="{{item.photoPreview}}" wx:key="_id" wx:for-item="photo" class="task-photo" src="{{photo.imgUrl}}" mode="aspectFill" bindtap="previewTaskPhotos" data-id="{{item.id}}" data-url="{{photo.imgUrl}}"></image>
+        </view>
+        <text class="task-photo-count">已关联 {{item.photoCount}} 张照片</text>
+      </view>
+      <view class="task-actions">
+        <view wx:if="{{item.completed}}" class="action-btn photo-action" bindtap="addTaskPhotos" data-id="{{item.id}}">{{uploadingTaskId === item.id ? '上传中' : item.photoCount ? '继续加照片' : '添加照片'}}</view>
+        <view class="action-btn" bindtap="editTask" data-id="{{item.id}}">编辑</view>
+        <view class="action-btn delete" bindtap="deleteTask" data-id="{{item.id}}">删除</view>
+      </view>
     </view>
   </view>
 

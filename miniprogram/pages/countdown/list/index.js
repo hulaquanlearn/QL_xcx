@@ -1,5 +1,6 @@
 // pages/countdown/list/index.js
 const app = getApp()
+const dateUtils = require('../../../utils/date')
 
 Page({
   data: {
@@ -13,12 +14,11 @@ Page({
   
   onLoad: function() {
     this.checkLogin();
-    this.loadCountdowns();
   },
   
   // 页面显示时刷新数据
   onShow: function() {
-    this.loadCountdowns();
+    if (this.checkLogin()) this.loadCountdowns();
   },
   
   // 检查登录状态
@@ -36,10 +36,7 @@ Page({
     const db = wx.cloud.database();
     const coupleId = app.globalData.coupleId;
     
-    console.log('加载纪念日，coupleId:', coupleId);
-    
     if (!coupleId) {
-      console.log('coupleId为空，无法加载纪念日');
       this.setData({ 
         countdowns: [],
         loading: false 
@@ -50,56 +47,17 @@ Page({
     db.collection('countdown').where({
       coupleId: coupleId
     }).orderBy('date', 'asc').get().then(res => {
-      console.log('获取纪念日成功:', res.data);
-      // 计算每个纪念日的天数
+      // 使用完整的年月日计算，修改年份后展示会同步变化。
       const countdowns = res.data.map(item => {
-        const targetDate = new Date(item.date);
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        targetDate.setHours(0, 0, 0, 0);
-        
-        // 计算距离下一个纪念日的天数
-        const thisYear = today.getFullYear();
-        const thisYearDate = new Date(thisYear, targetDate.getMonth(), targetDate.getDate());
-        thisYearDate.setHours(0, 0, 0, 0);
-        
-        let diffDays;
-        if (thisYearDate >= today) {
-          // 今年的纪念日还没到或就是今天
-          diffDays = Math.ceil((thisYearDate - today) / (1000 * 60 * 60 * 24));
-        } else {
-          // 今年的纪念日已过，计算明年的
-          const nextYearDate = new Date(thisYear + 1, targetDate.getMonth(), targetDate.getDate());
-          nextYearDate.setHours(0, 0, 0, 0);
-          diffDays = Math.ceil((nextYearDate - today) / (1000 * 60 * 60 * 24));
-        }
-
-        // 生成显示文本
-        let daysText = '';
-        let daysNum = '';
-        let daysUnit = '';
-
-        if (diffDays > 0) {
-          daysText = `还有${diffDays}天`;
-          daysNum = diffDays;
-          daysUnit = '天后';
-        } else if (diffDays === 0) {
-          daysText = '今天';
-          daysNum = '今天';
-          daysUnit = '';
-        }
-
-        // 格式化日期显示
-        const dateObj = new Date(item.date);
-        const dateText = `${dateObj.getFullYear()}年${dateObj.getMonth() + 1}月${dateObj.getDate()}日`;
+        const status = dateUtils.getDateStatus(item.date);
 
         return {
           ...item,
-          days: diffDays,
-          daysText: daysText,
-          daysNum: daysNum,
-          daysUnit: daysUnit,
-          dateText: dateText,
+          days: status.days,
+          daysText: status.text,
+          daysNum: status.daysNum,
+          daysUnit: status.daysUnit,
+          dateText: dateUtils.formatDate(item.date),
           slide: false
         };
       });

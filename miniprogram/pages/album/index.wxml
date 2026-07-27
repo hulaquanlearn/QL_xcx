@@ -4,7 +4,7 @@
   <view class="album-grid">
     <block wx:for="{{groupedAlbumList}}" wx:key="date">
       <view class="date-section"><text class="date-title">{{item.date}}</text><text class="date-count">{{item.photos.length}} 张</text></view>
-      <view class="date-photos"><view wx:for="{{item.photos}}" wx:key="_id" class="photo-item {{selectMode && utils.includes(selectedPhotos, item._id) ? 'photo-selected' : ''}}"><image src="{{item.imgUrl}}" mode="aspectFill" class="photo-img" bindtap="previewImage" data-imgurl="{{item.imgUrl}}" data-id="{{item._id}}"></image><view wx:if="{{selectMode}}" class="photo-checkbox {{utils.includes(selectedPhotos, item._id) ? 'checked' : ''}}" bindtap="toggleSelect" data-id="{{item._id}}"><text wx:if="{{utils.includes(selectedPhotos, item._id)}}">✓</text></view></view></view>
+      <view class="date-photos"><view wx:for="{{item.photos}}" wx:key="_id" class="photo-item {{selectMode && utils.includes(selectedPhotos, item._id) ? 'photo-selected' : ''}}"><image src="{{item.imgUrl}}" mode="aspectFill" class="photo-img" bindtap="previewImage" data-imgurl="{{item.imgUrl}}" data-id="{{item._id}}"></image><text wx:if="{{item.taskTitle && !selectMode}}" class="photo-source">来自清单 · {{item.taskTitle}}</text><view wx:if="{{selectMode}}" class="photo-checkbox {{utils.includes(selectedPhotos, item._id) ? 'checked' : ''}}" bindtap="toggleSelect" data-id="{{item._id}}"><text wx:if="{{utils.includes(selectedPhotos, item._id)}}">✓</text></view></view></view>
     </block>
   </view>
   <view class="action-buttons"><view class="action-btn select-btn" bindtap="toggleSelectMode">{{selectMode ? '完成选择' : '管理'}}</view><view class="action-btn upload-btn" bindtap="chooseImage">上传照片</view></view>

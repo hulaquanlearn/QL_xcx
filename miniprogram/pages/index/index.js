@@ -3,13 +3,19 @@
 const app = getApp()
 const api = require('../../services/api')
 const auth = require('../../services/auth')
+const avatarService = require('../../services/avatar')
+const mediaService = require('../../services/media')
+const dateUtils = require('../../utils/date')
 
 Page({
   data: {
     isLoggedIn: false,
     coupleId: '',
     loveDays: 0,
-    avatars: {},
+    userAvatar: '',
+    partnerAvatar: '',
+    userInitial: '我',
+    partnerInitial: 'TA',
     albumList: [],
     countdownList: [],
     pinnedAnniversary: null,
@@ -131,83 +137,43 @@ onLoad: function() {
 
   // 计算天数差（修复差一天问题）
   calculateDaysDiff: function(dateStr) {
-    const targetDate = new Date(dateStr);
-    const now = new Date();
-
-    // 重置时间为当天的00:00:00
-    const target = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate());
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-
-    const diffTime = today - target;
-    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-
-    return diffDays;
+    const difference = dateUtils.differenceFromToday(dateStr);
+    return difference === null ? 0 : Math.max(0, -difference);
   },
 
   // 加载头像
   loadAvatars: function() {
-    const db = wx.cloud.database();
     const coupleId = this.data.coupleId || app.globalData.coupleId;
-    
     if (!coupleId) return;
-    
-    db.collection('avatars').where({
-      coupleId: coupleId
-    }).get().then(res => {
-      if (res.data.length > 0) {
-        const avatarsData = res.data[0];
-        const fileIDs = [];
-        if (avatarsData.male) fileIDs.push(avatarsData.male);
-        if (avatarsData.female) fileIDs.push(avatarsData.female);
-        
-        if (fileIDs.length > 0) {
-          wx.cloud.getTempFileURL({
-            fileList: fileIDs
-          }).then(tempRes => {
-            const tempURLs = {};
-            tempRes.fileList.forEach(item => {
-              if (avatarsData.male === item.fileID) {
-                tempURLs.male = item.tempFileURL;
-              }
-              if (avatarsData.female === item.fileID) {
-                tempURLs.female = item.tempFileURL;
-              }
-            });
-            this.setData({ 
-              avatars: avatarsData,
-              maleAvatar: tempURLs.male || '',
-              femaleAvatar: tempURLs.female || ''
-            });
-          }).catch(err => {
-            console.error('获取临时URL失败：', err);
-            this.setData({ 
-              avatars: avatarsData,
-              maleAvatar: avatarsData.male || '',
-              femaleAvatar: avatarsData.female || ''
-            });
-          });
-        } else {
-          this.setData({ 
-            avatars: avatarsData,
-            maleAvatar: '',
-            femaleAvatar: ''
-          });
-        }
-      } else {
-        this.setData({ 
-          avatars: {},
-          maleAvatar: '',
-          femaleAvatar: ''
+    return api.getAvatars().then(rows => {
+      const userId = String(app.globalData.userInfo?.id || app.globalData.openid || '');
+      const partnerId = String(app.globalData.partnerInfo?.id || '');
+      const userRow = rows.find(item => String(item.userId) === userId) || {};
+      const partnerRow = rows.find(item => String(item.userId) === partnerId) || {};
+      const keys = [userRow.key, partnerRow.key].filter(Boolean);
+      return avatarService.resolveFiles(keys).then(urls => {
+        this.setData({
+          userAvatar: urls[userRow.key] || '',
+          partnerAvatar: urls[partnerRow.key] || '',
+          userInitial: String(userRow.name || app.globalData.userInfo?.name || '我').slice(0, 1),
+          partnerInitial: String(partnerRow.name || app.globalData.partnerInfo?.name || 'TA').slice(0, 1)
         });
-      }
+        if (String(userRow.key || '').startsWith('cloud://') && !this.avatarMigrationRunning) {
+          this.avatarMigrationRunning = true;
+          avatarService.migrateLegacy(userRow.key)
+            .then(() => this.loadAvatars())
+            .catch(() => {})
+            .finally(() => { this.avatarMigrationRunning = false; });
+        }
+      });
     }).catch(err => {
       console.error('获取头像失败：', err);
+      this.setData({ userAvatar: '', partnerAvatar: '' });
     });
   },
   
   // 上传头像
-  uploadAvatar: function(e) {
-    const gender = e.currentTarget.dataset.gender;
+  uploadAvatar: function() {
     const that = this;
     
     wx.chooseImage({
@@ -216,68 +182,23 @@ onLoad: function() {
       sourceType: ['album', 'camera'],
       success: function(res) {
         const tempFilePath = res.tempFilePaths[0];
-        that.uploadAvatarToCloud(tempFilePath, gender);
+        that.uploadAvatarToServer(tempFilePath);
       }
     });
   },
   
-  // 上传头像到云存储
-  uploadAvatarToCloud: function(tempFilePath, gender) {
-    const coupleId = this.data.coupleId || app.globalData.coupleId;
-    const cloudPath = `avatars/${coupleId}_${gender}_${Date.now()}.jpg`;
-    
+  // 上传头像到情侣空间服务器
+  uploadAvatarToServer: function(tempFilePath) {
     this.setData({ uploading: true });
-    
-    wx.cloud.uploadFile({
-      cloudPath: cloudPath,
-      filePath: tempFilePath,
-      success: res => {
-        this.updateAvatarInDB(res.fileID, gender);
-      },
-      fail: err => {
-        console.error('上传头像失败：', err);
-        this.setData({ uploading: false });
-        wx.showToast({ title: '上传失败', icon: 'none' });
-      }
-    });
-  },
-  
-  // 更新头像到数据库
-  updateAvatarInDB: function(fileID, gender) {
-    const db = wx.cloud.database();
-    const coupleId = this.data.coupleId || app.globalData.coupleId;
-    
-    db.collection('avatars').where({
-      coupleId: coupleId
-    }).get().then(res => {
-      if (res.data.length > 0) {
-        // 已存在头像记录，更新
-        const avatarData = {};
-        avatarData[gender] = fileID;
-        
-        db.collection('avatars').doc(res.data[0]._id).update({
-          data: avatarData
-        }).then(() => {
-          this.loadAvatars();
-          this.setData({ uploading: false });
-          wx.showToast({ title: '头像更新成功', icon: 'success' });
-        });
-      } else {
-        // 不存在头像记录，创建
-        const avatarData = {
-          coupleId: coupleId,
-          [gender]: fileID,
-          createdAt: db.serverDate()
-        };
-        
-        db.collection('avatars').add({
-          data: avatarData
-        }).then(() => {
-          this.loadAvatars();
-          this.setData({ uploading: false });
-          wx.showToast({ title: '头像设置成功', icon: 'success' });
-        });
-      }
+    avatarService.upload(tempFilePath).then(() => {
+      return this.loadAvatars();
+    }).then(() => {
+      this.setData({ uploading: false });
+      wx.showToast({ title: '头像已同步', icon: 'success' });
+    }).catch(err => {
+      console.error('上传头像失败：', err);
+      this.setData({ uploading: false });
+      wx.showToast({ title: err.message || '上传失败', icon: 'none' });
     });
   },
   
@@ -291,10 +212,34 @@ onLoad: function() {
     db.collection('album').where({
       coupleId: coupleId
     }).orderBy('createTime', 'desc').limit(9).get().then(res => {
-      this.setData({ albumList: res.data });
+      const rows = res.data || [];
+      const keys = rows.map(item => item.fileID || item.imgUrl).filter(Boolean);
+      return mediaService.resolveFiles(keys).then(urls => {
+        this.setData({
+          albumList: rows.map(item => {
+            const key = item.fileID || item.imgUrl;
+            return { ...item, storageKey: key, imgUrl: urls[key] || '' };
+          })
+        });
+        this.migrateLegacyAlbums(rows);
+      });
     }).catch(err => {
       console.error('获取相册失败：', err);
     });
+  },
+
+  migrateLegacyAlbums: function(rows) {
+    if (this.albumMigrationRunning) return;
+    const legacy = (rows || []).filter(item => String(item.fileID || item.imgUrl || '').startsWith('cloud://'));
+    if (!legacy.length) return;
+    this.albumMigrationRunning = true;
+    Promise.all(legacy.map(item => {
+      const oldKey = item.fileID || item.imgUrl;
+      return mediaService.migrateCloudFile(oldKey, 'album')
+        .then(newKey => api.update('album', item._id, { imgUrl: newKey, fileID: newKey }));
+    })).then(() => this.loadAlbum())
+      .catch(() => {})
+      .finally(() => { this.albumMigrationRunning = false; });
   },
   
   // 加载纪念日
@@ -309,25 +254,11 @@ onLoad: function() {
     }).orderBy('date', 'asc').get().then(res => {
       // 计算每个纪念日的日期显示文本
       const countdownList = res.data.map(item => {
-        const targetDate = new Date(item.date);
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        targetDate.setHours(0, 0, 0, 0);
-        const diffTime = targetDate - today;
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        
-        let dateText = '';
-        if (diffDays > 0) {
-          dateText = `还有${diffDays}天`;
-        } else if (diffDays === 0) {
-          dateText = '今天';
-        } else {
-          dateText = `已过${Math.abs(diffDays)}天`;
-        }
+        const status = dateUtils.getDateStatus(item.date);
         
         return {
           ...item,
-          dateText: dateText
+          dateText: status.text
         };
       });
       
@@ -384,14 +315,12 @@ onLoad: function() {
   goToFood: function() {
     wx.navigateTo({ url: '/pages/food/index' });
   },
-  
+
   // 跳转到我的
   goToMine: function() {
     wx.navigateTo({ url: '/pages/mine/index' });
   },
 
   // 图片加载失败
-  imgError: function(e) {
-    console.log('图片加载失败', e);
-  },
+  imgError: function() {},
 })

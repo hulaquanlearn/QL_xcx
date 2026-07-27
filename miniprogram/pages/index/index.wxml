@@ -1,34 +1,37 @@
 <view class="container home-page">
   <view wx:if="{{!isLoggedIn}}" class="login-shell">
-    <view class="login-brand">
-      <view class="brand-mark"><text>间</text></view>
-      <text class="login-eyebrow">OUR SPACE</text>
-      <text class="login-title">两个人的日常</text>
-      <text class="login-subtitle">把值得记住的事，安静地放在一起</text>
-    </view>
+    <view class="login-main">
+      <view class="login-brand">
+        <text class="login-eyebrow">OUR SPACE</text>
+        <text class="login-title">两个人的日常</text>
+        <text class="login-subtitle">把值得记住的事，安静地放在一起</text>
+      </view>
 
-    <view class="login-panel">
-      <view class="field">
-        <text class="field-label">账号</text>
-        <input class="login-input" type="text" placeholder="请输入账号" placeholder-class="input-placeholder" value="{{account}}" bindinput="onAccountInput" maxlength="20" confirm-type="next"/>
+      <view class="login-panel">
+        <view class="field">
+          <text class="field-label">账号</text>
+          <input class="login-input" type="text" placeholder="请输入账号" placeholder-class="input-placeholder" value="{{account}}" bindinput="onAccountInput" maxlength="20" confirm-type="next"/>
+        </view>
+        <view class="field">
+          <text class="field-label">密码</text>
+          <input class="login-input" password placeholder="请输入密码" placeholder-class="input-placeholder" value="{{password}}" bindinput="onPasswordInput" maxlength="32" confirm-type="done" bindconfirm="login"/>
+        </view>
+        <button class="login-btn" bindtap="login" hover-class="login-btn-active" hover-stay-time="80">
+          <text class="login-btn-text">进入空间</text>
+        </button>
+        <text class="login-hint">账号由管理员统一开通</text>
       </view>
-      <view class="field">
-        <text class="field-label">密码</text>
-        <input class="login-input" password placeholder="请输入密码" placeholder-class="input-placeholder" value="{{password}}" bindinput="onPasswordInput" maxlength="32" confirm-type="done" bindconfirm="login"/>
-      </view>
-      <button class="login-btn" bindtap="login">进入空间</button>
-      <text class="login-hint">账号由管理员统一开通</text>
     </view>
     <text class="login-footnote">仅用于你和重要的人共享</text>
   </view>
 
   <view wx:else class="logged-in-container">
+    <view class="home-nav-mask"></view>
     <view class="home-header">
       <view>
         <text class="home-eyebrow">OUR DAYS</text>
         <text class="welcome-text">一起生活，慢慢记录</text>
       </view>
-      <view class="profile-entry" bindtap="goToMine"><text>我的</text></view>
     </view>
 
     <view wx:if="{{!coupleId}}" class="setup-card">
@@ -45,21 +48,21 @@
           <text class="days-link">查看纪念日</text>
         </view>
         <view class="pair-row">
-          <view class="avatar" data-gender="male" catchtap="uploadAvatar">
-            <image wx:if="{{maleAvatar}}" class="avatar-image" src="{{maleAvatar}}" mode="aspectFill"></image>
-            <text wx:else class="avatar-fallback">A</text>
+          <view class="avatar" catchtap="uploadAvatar">
+            <image wx:if="{{userAvatar}}" class="avatar-image" src="{{userAvatar}}" mode="aspectFill"></image>
+            <text wx:else class="avatar-fallback">{{userInitial}}</text>
           </view>
           <view class="days-center">
             <text class="days-number">{{loveDays}}</text>
             <text class="days-unit">天</text>
             <text class="days-date" wx:if="{{pinnedAnniversary}}">始于 {{pinnedAnniversary.date}}</text>
           </view>
-          <view class="avatar" data-gender="female" catchtap="uploadAvatar">
-            <image wx:if="{{femaleAvatar}}" class="avatar-image" src="{{femaleAvatar}}" mode="aspectFill"></image>
-            <text wx:else class="avatar-fallback">B</text>
+          <view class="avatar">
+            <image wx:if="{{partnerAvatar}}" class="avatar-image" src="{{partnerAvatar}}" mode="aspectFill"></image>
+            <text wx:else class="avatar-fallback">{{partnerInitial}}</text>
           </view>
         </view>
-        <text class="avatar-tip">轻触头像可以更换照片</text>
+        <text class="avatar-tip">轻触自己的头像可以更换照片</text>
       </view>
 
       <view class="quick-section">

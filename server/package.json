@@ -1,6 +1,6 @@
 {
   "name": "couple-space-api",
-  "version": "2.0.0",
+  "version": "2.3.0",
   "private": true,
   "main": "src/app.js",
   "scripts": { "start": "node src/app.js", "dev": "node --watch src/app.js", "test": "node --test", "create-user": "node scripts/create-user.js" },

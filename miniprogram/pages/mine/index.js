@@ -1,6 +1,7 @@
 const app = getApp();
 const api = require('../../services/api');
 const auth = require('../../services/auth');
+const avatarService = require('../../services/avatar');
 
 Page({
   data: {
@@ -25,8 +26,7 @@ Page({
   },
 
   onLoad() {
-    if (!this.checkLogin()) return;
-    this.refreshPage();
+    this.checkLogin();
   },
 
   onShow() {
@@ -89,18 +89,24 @@ Page({
   loadAvatars() {
     if (!app.globalData.coupleId) return Promise.resolve();
     return api.getAvatars().then(rows => {
-      const avatars = rows[0] || {};
-      const fileList = [avatars.male, avatars.female].filter(Boolean);
+      const userId = String(this.data.userInfo?.id || app.globalData.userInfo?.id || '');
+      const partnerId = String(this.data.partnerInfo?.id || app.globalData.partnerInfo?.id || '');
+      const userAvatarRow = rows.find(item => String(item.userId) === userId) || {};
+      const partnerAvatarRow = rows.find(item => String(item.userId) === partnerId) || {};
+      const fileList = [userAvatarRow.key, partnerAvatarRow.key].filter(Boolean);
       if (!fileList.length) return this.setData({ userAvatar: '', partnerAvatar: '' });
-      return wx.cloud.getTempFileURL({ fileList }).then(result => {
-        const urls = {};
-        result.fileList.forEach(item => { urls[item.fileID] = item.tempFileURL; });
-        const userGender = this.data.userInfo?.gender;
-        const partnerGender = this.data.partnerInfo?.gender;
+      return avatarService.resolveFiles(fileList).then(urls => {
         this.setData({
-          userAvatar: urls[userGender === 'female' ? avatars.female : avatars.male] || '',
-          partnerAvatar: urls[partnerGender === 'female' ? avatars.female : avatars.male] || ''
+          userAvatar: urls[userAvatarRow.key] || '',
+          partnerAvatar: urls[partnerAvatarRow.key] || ''
         });
+        if (String(userAvatarRow.key || '').startsWith('cloud://') && !this.avatarMigrationRunning) {
+          this.avatarMigrationRunning = true;
+          avatarService.migrateLegacy(userAvatarRow.key)
+            .then(() => this.loadAvatars())
+            .catch(() => {})
+            .finally(() => { this.avatarMigrationRunning = false; });
+        }
       });
     }).catch(() => this.setData({ userAvatar: '', partnerAvatar: '' }));
   },

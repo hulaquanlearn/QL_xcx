@@ -1,5 +1,7 @@
 // pages/activity/index.js
 const app = getApp()
+const api = require('../../services/api')
+const mediaService = require('../../services/media')
 
 Page({
   data: {
@@ -12,7 +14,8 @@ Page({
     showModal: false,
     modalTitle: '',
     modalValue: '',
-    editingTaskId: null
+    editingTaskId: null,
+    uploadingTaskId: ''
   },
 
   onLoad(options) {
@@ -33,7 +36,6 @@ Page({
       wx.redirectTo({ url: '/pages/index/index' });
       return false;
     }
-    this.getTasksList();
     return true;
   },
 
@@ -53,12 +55,16 @@ Page({
     this.setData({ loading: true });
     const db = wx.cloud.database();
 
-    db.collection('tasks').where({
+    return db.collection('tasks').where({
       coupleId: coupleId
     }).orderBy('createTime', 'desc').get().then(res => {
+      const currentById = new Map(this.data.tasksList.map(item => [String(item.id), item]));
       const tasksList = res.data.map(item => ({
         ...item,
-        id: item._id
+        id: item._id,
+        photos: currentById.get(String(item._id))?.photos || [],
+        photoPreview: currentById.get(String(item._id))?.photoPreview || [],
+        photoCount: currentById.get(String(item._id))?.photoCount || 0
       }));
 
       const completedCount = tasksList.filter(t => t.completed).length;
@@ -71,10 +77,41 @@ Page({
         loading: false
       });
       this.applyFilter();
+      this.loadTaskPhotos(tasksList);
     }).catch(err => {
       console.error('获取任务失败：', err);
       this.setData({ loading: false });
       wx.showToast({ title: '获取任务失败', icon: 'none' });
+    });
+  },
+
+  loadTaskPhotos: function(tasksList) {
+    const db = wx.cloud.database();
+    return db.collection('album').where({ coupleId: app.globalData.coupleId }).limit(200).get().then(res => {
+      const linkedPhotos = (res.data || []).filter(photo => photo.taskId);
+      const keys = linkedPhotos.map(photo => photo.fileID || photo.imgUrl).filter(Boolean);
+      return mediaService.resolveFiles(keys).then(urls => {
+        const photosByTask = new Map();
+        linkedPhotos.forEach(photo => {
+          const key = photo.fileID || photo.imgUrl;
+          const taskId = String(photo.taskId);
+          if (!photosByTask.has(taskId)) photosByTask.set(taskId, []);
+          photosByTask.get(taskId).push({ ...photo, imgUrl: urls[key] || '' });
+        });
+        const updated = tasksList.map(task => {
+          const photos = photosByTask.get(String(task.id)) || [];
+          return {
+            ...task,
+            photos,
+            photoPreview: photos.slice(0, 4),
+            photoCount: photos.length
+          };
+        });
+        this.setData({ tasksList: updated });
+        this.applyFilter();
+      });
+    }).catch(error => {
+      console.error('加载清单照片失败：', error);
     });
   },
 
@@ -150,7 +187,6 @@ Page({
 
   createTask: function(title) {
     const coupleId = app.globalData.coupleId;
-    const openid = app.globalData.openid;
 
     if (!coupleId) {
       wx.showToast({ title: '请先绑定情侣', icon: 'none' });
@@ -163,12 +199,9 @@ Page({
       data: {
         title: title,
         description: '',
-        deadline: '',
         completed: false,
         coupleId: coupleId,
-        authorOpenid: openid,
-        createTime: db.serverDate(),
-        updateTime: db.serverDate()
+        createTime: db.serverDate()
       }
     }).then(() => {
       wx.showToast({ title: '添加成功', icon: 'success' });
@@ -197,8 +230,7 @@ Page({
 
     db.collection('tasks').doc(taskId).update({
       data: {
-        title: title,
-        updateTime: db.serverDate()
+        title: title
       }
     }).then(() => {
       wx.showToast({ title: '更新成功', icon: 'success' });
@@ -214,7 +246,7 @@ Page({
 
     wx.showModal({
       title: '确认删除',
-      content: '确定要删除这个必做事项吗？',
+      content: '删除清单后，关联照片仍会保留在相册中。确定继续吗？',
       success: (res) => {
         if (res.confirm) {
           this.removeTask(taskId);
@@ -245,8 +277,7 @@ Page({
 
     db.collection('tasks').doc(taskId).update({
       data: {
-        completed: newStatus,
-        updateTime: db.serverDate()
+        completed: newStatus
       }
     }).then(() => {
       wx.showToast({ 
@@ -254,9 +285,87 @@ Page({
         icon: 'success' 
       });
       this.getTasksList();
+      if (newStatus) this.promptTaskPhotos(task);
     }).catch(err => {
       console.error('更新状态失败：', err);
       wx.showToast({ title: '操作失败', icon: 'none' });
     });
+  },
+
+  promptTaskPhotos: function(task) {
+    wx.showModal({
+      title: '这件事完成啦',
+      content: '要把这次的照片一起留在相册里吗？可以一次选择多张，以后也能继续追加。',
+      confirmText: '添加照片',
+      cancelText: '暂不添加',
+      success: result => {
+        if (result.confirm) this.chooseTaskPhotosByTask(task);
+      }
+    });
+  },
+
+  addTaskPhotos: function(e) {
+    const taskId = String(e.currentTarget.dataset.id || '');
+    const task = this.data.tasksList.find(item => String(item.id) === taskId);
+    if (task) this.chooseTaskPhotosByTask(task);
+  },
+
+  chooseTaskPhotosByTask: function(task) {
+    if (this.data.uploadingTaskId) return;
+    wx.chooseImage({
+      count: 9,
+      sizeType: ['compressed'],
+      sourceType: ['album', 'camera'],
+      success: result => this.uploadTaskPhotos(task, result.tempFilePaths || [])
+    });
+  },
+
+  uploadTaskPhotos: function(task, filePaths) {
+    if (!filePaths.length) return;
+    const uploadedKeys = [];
+    this.setData({ uploadingTaskId: String(task.id) });
+    wx.showLoading({ title: `上传${filePaths.length}张照片` });
+    this.uploadPhotoFiles(filePaths, uploadedKeys)
+      .then(keys => api.attachTaskPhotos(task.id, keys, task.title))
+      .then(result => {
+        wx.hideLoading();
+        wx.showToast({ title: `已添加${result.count}张`, icon: 'success' });
+        return this.getTasksList();
+      }).catch(error => {
+        Promise.all(uploadedKeys.map(key => mediaService.remove(key))).catch(() => {});
+        wx.hideLoading();
+        wx.showToast({ title: error.message || '照片添加失败', icon: 'none' });
+      }).finally(() => {
+        this.setData({ uploadingTaskId: '' });
+      });
+  },
+
+  uploadPhotoFiles: function(filePaths, uploadedKeys) {
+    const queue = filePaths.slice();
+    let firstError = null;
+    const worker = () => {
+      if (firstError) return Promise.resolve();
+      const filePath = queue.shift();
+      if (!filePath) return Promise.resolve();
+      return mediaService.upload(filePath, 'album').then(result => {
+        uploadedKeys.push(result.key);
+      }).catch(error => {
+        firstError = error;
+      }).then(worker);
+    };
+    const workerCount = Math.min(3, queue.length);
+    return Promise.all(Array.from({ length: workerCount }, worker))
+      .then(() => {
+        if (firstError) throw firstError;
+        return uploadedKeys.slice();
+      });
+  },
+
+  previewTaskPhotos: function(e) {
+    const taskId = String(e.currentTarget.dataset.id || '');
+    const current = e.currentTarget.dataset.url;
+    const task = this.data.tasksList.find(item => String(item.id) === taskId);
+    const urls = (task?.photos || []).map(photo => photo.imgUrl).filter(Boolean);
+    if (urls.length) wx.previewImage({ current: current || urls[0], urls });
   }
 })

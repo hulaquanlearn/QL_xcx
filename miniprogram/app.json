@@ -13,6 +13,8 @@
     "navigationBarBackgroundColor": "#F6F4EF",
     "navigationBarTextStyle": "black",
     "backgroundColor": "#F6F4EF",
+    "backgroundColorTop": "#F6F4EF",
+    "backgroundColorBottom": "#F6F4EF",
     "backgroundTextStyle": "dark"
   },
   "style": "v2",

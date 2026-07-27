@@ -11,6 +11,6 @@ page { background: #F6F4EF; }
 .info-item.important { border-bottom: 0; }
 .info-item.important .info-value { color: #B7654D; font-size: 34rpx; font-weight: 700; }
 .card-footer { display: grid; margin-top: 24rpx; padding-top: 24rpx; grid-template-columns: repeat(2,1fr); gap: 14rpx; border-top: 1rpx solid #EEEAE2; }
-.action-btn { height: 84rpx; border-radius: 18rpx; font-size: 25rpx; font-weight: 600; line-height: 84rpx; text-align: center; }
+.action-btn { display: flex; height: 84rpx; align-items: center; justify-content: center; border-radius: 18rpx; font-size: 25rpx; font-weight: 600; line-height: 1.4; text-align: center; }
 .edit-btn { background: #2D332F; color: #fff; }
 .delete-btn { background: #F4E9E6; color: #A6534B; }

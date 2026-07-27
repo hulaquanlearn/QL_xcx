@@ -10,12 +10,12 @@
     
     <view class="countdown-info">
       <view class="info-item important">
-        <text class="info-label">已持续天数：</text>
-        <text class="info-value">{{daysPassed}}</text>
+        <text class="info-label">{{relativeLabel}}</text>
+        <text class="info-value">{{relativeText}}</text>
       </view>
       <view class="info-item important">
-        <text class="info-label">倒计日期：</text>
-        <text class="info-value">{{daysThisYear}}</text>
+        <text class="info-label">下次同月同日</text>
+        <text class="info-value">{{annualText}}</text>
       </view>
       <view class="info-item" wx:if="{{countdown.description}}">
         <text class="info-label">描述：</text>

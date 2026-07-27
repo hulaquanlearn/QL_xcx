@@ -1,5 +1,6 @@
 // pages/countdown/add/index.js
 const app = getApp()
+const dateUtils = require('../../../utils/date')
 
 Page({
   data: {
@@ -9,7 +10,8 @@ Page({
     description: '',
     isAnniversary: false,
     countdownId: '',
-    isEdit: false
+    isEdit: false,
+    loading: false
   },
   
   onLoad: function(options) {
@@ -34,10 +36,11 @@ Page({
     const db = wx.cloud.database();
     db.collection('countdown').doc(id).get().then(res => {
       if (res.data) {
+        const date = dateUtils.toDateInputValue(res.data.date);
         this.setData({
           title: res.data.title,
-          date: res.data.date,
-          dateText: res.data.date,
+          date: date,
+          dateText: date,
           description: res.data.description || '',
           isAnniversary: res.data.isAnniversary
         });
@@ -72,6 +75,7 @@ Page({
   
   // 保存纪念日
   saveCountdown: function() {
+    if (this.data.loading) return;
     const title = this.data.title.trim();
     const date = this.data.date;
     const description = this.data.description.trim();
@@ -87,17 +91,15 @@ Page({
     }
     
     const db = wx.cloud.database();
-    const userInfo = app.globalData.userInfo;
     const coupleId = app.globalData.coupleId;
-    
-    console.log('保存纪念日，coupleId:', coupleId);
-    console.log('保存纪念日，userInfo:', userInfo);
     
     if (!coupleId) {
       wx.showToast({ title: '请先绑定情侣', icon: 'none' });
       return;
     }
     
+    this.setData({ loading: true });
+
     if (this.data.countdownId) {
       // 更新纪念日
       db.collection('countdown').doc(this.data.countdownId).update({
@@ -108,10 +110,12 @@ Page({
           isAnniversary: this.data.isAnniversary
         }
       }).then(() => {
+        this.setData({ loading: false });
         wx.showToast({ title: '更新成功', icon: 'success' });
         wx.navigateBack();
       }).catch(err => {
         console.error('更新失败：', err);
+        this.setData({ loading: false });
         wx.showToast({ title: '更新失败', icon: 'none' });
       });
     } else {
@@ -123,15 +127,15 @@ Page({
           description: description,
           isAnniversary: this.data.isAnniversary,
           coupleId: coupleId,
-          author: userInfo ? userInfo.name : '',
           createdAt: db.serverDate()
         }
       }).then(() => {
-        console.log('添加纪念日成功');
+        this.setData({ loading: false });
         wx.showToast({ title: '添加成功', icon: 'success' });
         wx.navigateBack();
       }).catch(err => {
         console.error('添加失败：', err);
+        this.setData({ loading: false });
         wx.showToast({ title: '添加失败', icon: 'none' });
       });
     }

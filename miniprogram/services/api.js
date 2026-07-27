@@ -32,13 +32,21 @@ module.exports = {
   bindPartner: inviteCode => request('/partner/bind', { method: 'POST', data: { inviteCode } }),
   unbindPartner: () => request('/partner/unbind', { method: 'POST' }),
   getAvatars: () => request('/avatars'),
-  updateAvatars: data => request('/avatars', { method: 'PATCH', data }),
+  uploadAvatarFile: data => request('/avatars/file', { method: 'POST', data, timeout: 60000 }),
+  uploadMediaFile: data => request('/media/file', { method: 'POST', data, timeout: 60000 }),
+  deleteMediaFile: (coupleId, filename) => request(`/media/file/${encodeURIComponent(coupleId)}/${encodeURIComponent(filename)}`, { method: 'DELETE' }),
   list: (resource, params = {}) => {
     const query = Object.keys(params).map(k => `${encodeURIComponent(k)}=${encodeURIComponent(params[k])}`).join('&');
     return request(`/resources/${resource}${query ? `?${query}` : ''}`);
   },
   get: (resource, id) => request(`/resources/${resource}/${encodeURIComponent(id)}`),
   create: (resource, data) => request(`/resources/${resource}`, { method: 'POST', data }),
+  batchCreateMenus: menus => request('/resources/menus/batch', { method: 'POST', data: { menus } }),
+  acceptOrder: id => request(`/resources/orders/${encodeURIComponent(id)}/accept`, { method: 'POST' }),
+  attachTaskPhotos: (taskId, images, description) => request('/resources/albums/task-photos', {
+    method: 'POST',
+    data: { taskId, images, description }
+  }),
   update: (resource, id, data) => request(`/resources/${resource}/${encodeURIComponent(id)}`, { method: 'PATCH', data }),
   remove: (resource, id) => request(`/resources/${resource}/${encodeURIComponent(id)}`, { method: 'DELETE' })
 };

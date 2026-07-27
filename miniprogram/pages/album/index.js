@@ -1,9 +1,10 @@
 // pages//album/index.js
 const app = getApp()
+const api = require('../../services/api')
+const mediaService = require('../../services/media')
 
 Page({
   data: {
-    albums: [],
     albumList: [],
     groupedAlbumList: [],
     selectedPhotos: [],
@@ -13,7 +14,6 @@ Page({
   
   onLoad: function() {
     this.checkLogin();
-    this.loadAlbums();
   },
   
   // 页面显示时刷新数据
@@ -36,12 +36,8 @@ Page({
     const db = wx.cloud.database();
     const coupleId = app.globalData.coupleId;
     
-    console.log('加载相册，coupleId:', coupleId);
-    
     if (!coupleId) {
-      console.log('coupleId为空，无法加载相册');
       this.setData({ 
-        albums: [],
         albumList: [],
         groupedAlbumList: [],
         loading: false 
@@ -52,27 +48,38 @@ Page({
     db.collection('album').where({
       coupleId: coupleId
     }).orderBy('createTime', 'desc').get().then(res => {
-      console.log('获取相册成功:', res.data);
-      
-      // 格式化数据，确保字段名一致
-      const albumList = res.data.map(item => ({
-        ...item,
-        imgUrl: item.imageUrl || item.imgUrl
-      }));
-      
-      // 按日期分组
-      const groupedAlbumList = this.groupByDate(albumList);
-      
-      this.setData({ 
-        albums: res.data,
-        albumList: albumList,
-        groupedAlbumList: groupedAlbumList,
-        loading: false 
+      const rows = res.data || [];
+      const keys = rows.map(item => item.fileID || item.imageUrl || item.imgUrl).filter(Boolean);
+      return mediaService.resolveFiles(keys).then(urls => {
+        const albumList = rows.map(item => {
+          const storageKey = item.fileID || item.imageUrl || item.imgUrl;
+          return { ...item, storageKey, imgUrl: urls[storageKey] || '' };
+        });
+        this.setData({
+          albumList,
+          groupedAlbumList: this.groupByDate(albumList),
+          loading: false
+        });
+        this.migrateLegacyAlbums(rows);
       });
     }).catch(err => {
       console.error('获取相册失败：', err);
       this.setData({ loading: false });
     });
+  },
+
+  migrateLegacyAlbums: function(rows) {
+    if (this.migrationRunning) return;
+    const legacy = (rows || []).filter(item => String(item.fileID || item.imageUrl || item.imgUrl || '').startsWith('cloud://'));
+    if (!legacy.length) return;
+    this.migrationRunning = true;
+    Promise.all(legacy.map(item => {
+      const oldKey = item.fileID || item.imageUrl || item.imgUrl;
+      return mediaService.migrateCloudFile(oldKey, 'album')
+        .then(newKey => api.update('album', item._id, { imgUrl: newKey, fileID: newKey }));
+    })).then(() => this.loadAlbums())
+      .catch(() => {})
+      .finally(() => { this.migrationRunning = false; });
   },
   
   // 按日期分组
@@ -147,11 +154,6 @@ Page({
           });
           
           Promise.all(promises).then(() => {
-            const fileList = that.data.albumList
-              .filter(item => selectedPhotos.includes(item._id))
-              .map(item => item.imgUrl)
-              .filter(url => typeof url === 'string' && url.indexOf('cloud://') === 0);
-            if (fileList.length) wx.cloud.deleteFile({ fileList }).catch(() => {});
             that.setData({ 
               loading: false,
               selectMode: false,
@@ -185,31 +187,15 @@ Page({
   // 上传图片
   uploadImages: function(tempFilePaths) {
     this.setData({ loading: true });
-    const uploadPromises = [];
-    const coupleId = app.globalData.coupleId;
-    
-    tempFilePaths.forEach((tempFilePath, index) => {
-      const cloudPath = `album/${coupleId}_${Date.now()}_${index}.jpg`;
-      uploadPromises.push(
-        new Promise((resolve, reject) => {
-          wx.cloud.uploadFile({
-            cloudPath: cloudPath,
-            filePath: tempFilePath,
-            success: res => {
-              resolve(res.fileID);
-            },
-            fail: err => {
-              reject(err);
-            }
-          });
-        })
-      );
-    });
-    
-    Promise.all(uploadPromises).then(fileIDs => {
+    const uploadedKeys = [];
+    Promise.all(tempFilePaths.map(tempFilePath => mediaService.upload(tempFilePath, 'album').then(result => {
+      uploadedKeys.push(result.key);
+      return result.key;
+    }))).then(fileIDs => {
       this.saveImages(fileIDs);
     }).catch(err => {
       console.error('上传图片失败：', err);
+      Promise.all(uploadedKeys.map(key => mediaService.remove(key))).catch(() => {});
       this.setData({ loading: false });
       wx.showToast({ title: '上传失败', icon: 'none' });
     });
@@ -225,6 +211,7 @@ Page({
       return db.collection('album').add({
         data: {
           imageUrl: fileID,
+          fileID: fileID,
           coupleId: coupleId,
           author: userInfo ? userInfo.name : '',
           createTime: db.serverDate()
@@ -238,6 +225,7 @@ Page({
       this.loadAlbums();
     }).catch(err => {
       console.error('保存图片失败：', err);
+      Promise.all(fileIDs.map(fileID => mediaService.remove(fileID))).catch(() => {});
       this.setData({ loading: false });
       wx.showToast({ title: '保存失败', icon: 'none' });
     });
