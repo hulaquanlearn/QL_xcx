@@ -10,6 +10,7 @@ test('public registration route is not present', () => {
   assert.equal(source.includes("post('/register'"), false);
   assert.equal(profileSource.includes('router.use(requireAuth)'), false);
   assert.equal(profileSource.includes("router.patch('/profile'"), true);
+  assert.equal(profileSource.includes("router.post('/partner/unbind'"), false);
 });
 
 test('registration endpoint responds with 404', async () => {

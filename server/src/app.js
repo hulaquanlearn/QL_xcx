@@ -2,7 +2,6 @@ const express = require('express');
 const helmet = require('helmet');
 const cors = require('cors');
 const rateLimit = require('express-rate-limit');
-const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const config = require('./config');
@@ -12,11 +11,11 @@ const { asyncHandler } = require('./utils');
 const {
   decodeImage,
   parseMediaKey,
-  legacyAvatarFilename,
   mediaPath,
-  writeMedia,
   removeMediaIfUnreferenced
 } = require('./media');
+const contentSafety = require('./content-safety');
+const mediaChecks = require('./media-checks');
 const { version } = require('../package.json');
 
 const app = express();
@@ -25,16 +24,21 @@ app.use(helmet());
 app.use(cors({ origin: false }));
 const uploadLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  limit: 30,
+  // The desktop template tool can publish several menus and their dish images
+  // in one operation. Authentication and per-couple checks still apply.
+  limit: 120,
   standardHeaders: true,
   legacyHeaders: false,
   message: { success: false, msg: '图片上传过于频繁，请稍后再试' }
 });
+// A 4 MB image becomes roughly 5.4 MB after base64 encoding.
 const imageJson = express.json({ limit: '6mb' });
+const callbackJson = express.json({ limit: '256kb', type: ['application/json', 'text/plain'] });
 const defaultJson = express.json({ limit: '1mb' });
 const postOnly = middleware => (req, res, next) => req.method === 'POST' ? middleware(req, res, next) : next();
 app.use('/api/couple-space/avatars/file', postOnly(requireAuth), postOnly(uploadLimiter), postOnly(imageJson));
 app.use('/api/couple-space/media/file', postOnly(requireAuth), postOnly(uploadLimiter), postOnly(imageJson));
+app.use('/api/couple-space/content-safety/callback', postOnly(callbackJson));
 app.use((req, res, next) => {
   const imageUpload = req.method === 'POST' && (
     req.path === '/api/couple-space/avatars/file' ||
@@ -46,29 +50,29 @@ app.use((req, res, next) => {
 app.get('/api/couple-space/health', async (_req, res) => {
   try {
     await checkDatabase();
-    res.json({ success: true, data: { database: 'connected', version } });
+    res.json({
+      success: true,
+      data: {
+        database: 'connected',
+        version,
+        contentSafety: contentSafety.isMediaConfigured() ? 'configured' : 'not_configured'
+      }
+    });
   } catch {
     res.status(503).json({ success: false, msg: '数据库不可用' });
   }
 });
 
 app.use('/api/couple-space/auth', require('./routes/auth'));
+app.use('/api/couple-space/content-safety', require('./routes/content-safety'));
 app.use('/api/couple-space/resources', require('./routes/resources'));
 app.use('/api/couple-space', require('./routes/profile'));
 
 app.get('/api/couple-space/avatars', requireAuth, asyncHandler(async (req, res) => {
   if (!req.userRow.couple_id) return res.json({ success: true, data: [] });
   const [rows] = await pool.query(
-    `SELECT u.id user_id,u.name,u.gender,
-      COALESCE(
-        NULLIF(u.avatar_key,''),
-        CASE
-          WHEN u.gender='female' THEN NULLIF(a.female_url,'')
-          ELSE NULLIF(a.male_url,'')
-        END
-      ) avatar_key
+    `SELECT u.id user_id,u.name,u.gender,u.avatar_key
      FROM users u
-     LEFT JOIN avatars a ON a.couple_id=u.couple_id
      WHERE u.couple_id=?
      ORDER BY u.id`,
     [req.userRow.couple_id]
@@ -87,36 +91,8 @@ app.get('/api/couple-space/avatars', requireAuth, asyncHandler(async (req, res) 
 
 app.post('/api/couple-space/avatars/file', asyncHandler(async (req, res) => {
   if (!req.userRow.couple_id) return res.status(409).json({ success: false, msg: '请先绑定情侣' });
-  const { buffer, type } = decodeImage(req.body.data);
-
-  await fs.promises.mkdir(config.avatarDir, { recursive: true });
-  const filename = `${crypto.randomBytes(16).toString('hex')}.${type.extension}`;
-  const filePath = path.join(config.avatarDir, filename);
-  const key = `server-avatar:${filename}`;
-  const [previousRows] = await pool.query(
-    'SELECT avatar_key FROM users WHERE id=? LIMIT 1',
-    [req.userRow.id]
-  );
-
-  await fs.promises.writeFile(filePath, buffer, { flag: 'wx' });
-  try {
-    await pool.query('UPDATE users SET avatar_key=? WHERE id=?', [key, req.userRow.id]);
-  } catch (error) {
-    await fs.promises.unlink(filePath).catch(() => {});
-    throw error;
-  }
-
-  const previousKey = previousRows[0]?.avatar_key;
-  const previousFilename = legacyAvatarFilename(previousKey);
-  if (previousFilename) {
-    const [references] = await pool.query('SELECT id FROM users WHERE avatar_key=? LIMIT 1', [previousKey]);
-    if (!references.length) {
-      await fs.promises.unlink(path.join(config.avatarDir, previousFilename)).catch(() => {});
-    }
-  } else {
-    await removeMediaIfUnreferenced(pool, previousKey).catch(() => {});
-  }
-  return res.status(201).json({ success: true, data: { key } });
+  const pending = await mediaChecks.beginCheck(req.userRow, 'avatar', decodeImage(req.body.data));
+  return res.status(202).json({ success: true, data: pending });
 }));
 
 app.get('/api/couple-space/avatars/file/:filename', requireAuth, asyncHandler(async (req, res) => {
@@ -144,11 +120,11 @@ app.get('/api/couple-space/avatars/file/:filename', requireAuth, asyncHandler(as
 app.post('/api/couple-space/media/file', asyncHandler(async (req, res) => {
   if (!req.userRow.couple_id) return res.status(409).json({ success: false, msg: '请先绑定情侣' });
   const purpose = String(req.body.purpose || '');
-  if (!['album', 'dish'].includes(purpose)) {
+  if (!['album', 'dish', 'recipe'].includes(purpose)) {
     return res.status(400).json({ success: false, msg: '图片用途无效' });
   }
-  const created = await writeMedia(req.userRow.couple_id, req.body.data);
-  return res.status(201).json({ success: true, data: { key: created.key } });
+  const pending = await mediaChecks.beginCheck(req.userRow, purpose, decodeImage(req.body.data));
+  return res.status(202).json({ success: true, data: pending });
 }));
 
 app.get('/api/couple-space/media/file/:coupleId/:filename', requireAuth, asyncHandler(async (req, res) => {
@@ -202,7 +178,10 @@ app.use((err, _req, res, _next) => {
 
 if (require.main === module) {
   checkDatabase()
-    .then(() => app.listen(config.port, config.host, () => console.log(`Couple Space API listening on ${config.host}:${config.port}`)))
+    .then(() => {
+      mediaChecks.startCleanupScheduler();
+      return app.listen(config.port, config.host, () => console.log(`Couple Space API listening on ${config.host}:${config.port}`));
+    })
     .catch(err => {
       console.error('MySQL connection failed:', err.message);
       process.exit(1);

@@ -20,7 +20,9 @@ Page({
     countdownList: [],
     pinnedAnniversary: null,
     account: '',
-    password: ''
+    password: '',
+    uploading: false,
+    loggingIn: false
   },
   
   /**
@@ -38,9 +40,16 @@ onLoad: function() {
       this.setData({ isLoggedIn: false, coupleId: '' });
       return;
     }
-    app.autoLogin(success => {
+    app.autoLogin((success, _user, error) => {
       if (!success) {
-        this.setData({ isLoggedIn: false, coupleId: '' });
+        const useCachedSession = Boolean(auth.getToken() && app.globalData.userInfo);
+        this.setData({
+          isLoggedIn: useCachedSession,
+          coupleId: useCachedSession ? (app.globalData.coupleId || '') : ''
+        });
+        if (useCachedSession && error) {
+          wx.showToast({ title: '网络暂时不可用，登录状态已保留', icon: 'none' });
+        }
         return;
       }
       this.setData({ isLoggedIn: true, coupleId: app.globalData.coupleId });
@@ -60,6 +69,7 @@ onLoad: function() {
 
   // 账号密码登录
   login: function() {
+    if (this.data.loggingIn) return;
     const { account, password } = this.data;
     
     if (!account.trim()) {
@@ -72,66 +82,55 @@ onLoad: function() {
       return;
     }
     
+    this.setData({ loggingIn: true });
     wx.showLoading({ title: '登录中...' });
     
     api.login({ account: account.trim(), password }).then(({ token, user, partner }) => {
-      wx.hideLoading();
+      mediaService.clearCaches();
       auth.setSession(token, user);
-      app.globalData.openid = user.id;
+      app.globalData.userId = user.id;
       app.globalData.userInfo = user;
       app.globalData.coupleId = user.coupleId;
       app.globalData.partnerInfo = partner || null;
       app.globalData.manualLogout = false;
-      app.saveLoginStatus({ openid: user.id, coupleId: user.coupleId, userInfo: user, partnerInfo: partner || null });
+      app.saveLoginStatus({ userId: user.id, coupleId: user.coupleId, userInfo: user, partnerInfo: partner || null });
       this.setData({ isLoggedIn: true, coupleId: user.coupleId });
       wx.showToast({ title: '登录成功', icon: 'success' });
       if (user.coupleId) this.loadData();
     }).catch(err => {
-      wx.hideLoading();
       wx.showToast({ title: err.message || '登录失败', icon: 'none' });
+    }).finally(() => {
+      wx.hideLoading();
+      this.setData({ loggingIn: false });
     });
   },
 
   // 加载数据
   loadData: function() {
-    this.loadLoveDays();
+    this.loadCountdownData();
     this.loadAvatars();
     this.loadAlbum();
-    this.loadCountdown();
   },
   
-  // 加载恋爱天数
-  loadLoveDays: function() {
-    const db = wx.cloud.database();
+  // 一次请求同时刷新恋爱天数、纪念日列表和首页置顶项。
+  loadCountdownData: function() {
     const coupleId = this.data.coupleId || app.globalData.coupleId;
-    
     if (!coupleId) return;
-    
-    // 查找isAnniversary为true的纪念日，如果没有则查找第一个纪念日
-    db.collection('countdown').where({
-      coupleId: coupleId,
-      isAnniversary: true
-    }).get().then(res => {
-      if (res.data.length > 0) {
-        const anniversary = res.data[0];
-        const diffDays = this.calculateDaysDiff(anniversary.date);
-        this.setData({ loveDays: diffDays });
-      } else {
-        // 如果没有标记为isAnniversary的，查找最早的纪念日
-        db.collection('countdown').where({
-          coupleId: coupleId
-        }).orderBy('date', 'asc').limit(1).get().then(res2 => {
-          if (res2.data.length > 0) {
-            const anniversary = res2.data[0];
-            const diffDays = this.calculateDaysDiff(anniversary.date);
-            this.setData({ loveDays: diffDays });
-          } else {
-            this.setData({ loveDays: 0 });
-          }
-        });
-      }
+
+    return api.list('countdown', { limit: 200 }).then(rows => {
+      const countdownList = rows.map(item => ({
+        ...item,
+        dateText: dateUtils.getDateStatus(item.date).text
+      }));
+      const anniversary = countdownList.find(item => item.isAnniversary) || countdownList[0] || null;
+      const pinnedAnniversary = countdownList.find(item => item.isTop) || countdownList[0] || null;
+      this.setData({
+        loveDays: anniversary ? this.calculateDaysDiff(anniversary.date) : 0,
+        countdownList,
+        pinnedAnniversary
+      });
     }).catch(err => {
-      console.error('获取恋爱天数失败：', err);
+      console.error('获取纪念日失败：', err);
     });
   },
 
@@ -146,7 +145,7 @@ onLoad: function() {
     const coupleId = this.data.coupleId || app.globalData.coupleId;
     if (!coupleId) return;
     return api.getAvatars().then(rows => {
-      const userId = String(app.globalData.userInfo?.id || app.globalData.openid || '');
+      const userId = String(app.globalData.userInfo?.id || app.globalData.userId || '');
       const partnerId = String(app.globalData.partnerInfo?.id || '');
       const userRow = rows.find(item => String(item.userId) === userId) || {};
       const partnerRow = rows.find(item => String(item.userId) === partnerId) || {};
@@ -158,13 +157,6 @@ onLoad: function() {
           userInitial: String(userRow.name || app.globalData.userInfo?.name || '我').slice(0, 1),
           partnerInitial: String(partnerRow.name || app.globalData.partnerInfo?.name || 'TA').slice(0, 1)
         });
-        if (String(userRow.key || '').startsWith('cloud://') && !this.avatarMigrationRunning) {
-          this.avatarMigrationRunning = true;
-          avatarService.migrateLegacy(userRow.key)
-            .then(() => this.loadAvatars())
-            .catch(() => {})
-            .finally(() => { this.avatarMigrationRunning = false; });
-        }
       });
     }).catch(err => {
       console.error('获取头像失败：', err);
@@ -174,6 +166,10 @@ onLoad: function() {
   
   // 上传头像
   uploadAvatar: function() {
+    if (this.data.uploading) {
+      wx.showToast({ title: '头像正在上传，请稍候', icon: 'none' });
+      return;
+    }
     const that = this;
     
     wx.chooseImage({
@@ -204,15 +200,11 @@ onLoad: function() {
   
   // 加载相册
   loadAlbum: function() {
-    const db = wx.cloud.database();
     const coupleId = this.data.coupleId || app.globalData.coupleId;
     
     if (!coupleId) return;
     
-    db.collection('album').where({
-      coupleId: coupleId
-    }).orderBy('createTime', 'desc').limit(9).get().then(res => {
-      const rows = res.data || [];
+    api.list('album', { limit: 9 }).then(rows => {
       const keys = rows.map(item => item.fileID || item.imgUrl).filter(Boolean);
       return mediaService.resolveFiles(keys).then(urls => {
         this.setData({
@@ -221,69 +213,12 @@ onLoad: function() {
             return { ...item, storageKey: key, imgUrl: urls[key] || '' };
           })
         });
-        this.migrateLegacyAlbums(rows);
       });
     }).catch(err => {
       console.error('获取相册失败：', err);
     });
   },
 
-  migrateLegacyAlbums: function(rows) {
-    if (this.albumMigrationRunning) return;
-    const legacy = (rows || []).filter(item => String(item.fileID || item.imgUrl || '').startsWith('cloud://'));
-    if (!legacy.length) return;
-    this.albumMigrationRunning = true;
-    Promise.all(legacy.map(item => {
-      const oldKey = item.fileID || item.imgUrl;
-      return mediaService.migrateCloudFile(oldKey, 'album')
-        .then(newKey => api.update('album', item._id, { imgUrl: newKey, fileID: newKey }));
-    })).then(() => this.loadAlbum())
-      .catch(() => {})
-      .finally(() => { this.albumMigrationRunning = false; });
-  },
-  
-  // 加载纪念日
-  loadCountdown: function() {
-    const db = wx.cloud.database();
-    const coupleId = this.data.coupleId || app.globalData.coupleId;
-    
-    if (!coupleId) return;
-    
-    db.collection('countdown').where({
-      coupleId: coupleId
-    }).orderBy('date', 'asc').get().then(res => {
-      // 计算每个纪念日的日期显示文本
-      const countdownList = res.data.map(item => {
-        const status = dateUtils.getDateStatus(item.date);
-        
-        return {
-          ...item,
-          dateText: status.text
-        };
-      });
-      
-      this.setData({ countdownList: countdownList });
-      
-      // 只显示置顶的纪念日，不再循环滚动
-      if (countdownList.length > 0) {
-        // 优先显示置顶的纪念日
-        let pinnedItem = countdownList.find(item => item.isTop);
-        if (!pinnedItem) {
-          // 如果没有置顶的，显示第一个
-          pinnedItem = countdownList[0];
-        }
-        
-        this.setData({ 
-          pinnedAnniversary: pinnedItem
-        });
-      } else {
-        this.setData({ pinnedAnniversary: null });
-      }
-    }).catch(err => {
-      console.error('获取纪念日失败：', err);
-    });
-  },
-  
   // 页面显示时刷新数据
   onShow: function() {
     if (this.data.isLoggedIn) {

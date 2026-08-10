@@ -29,6 +29,7 @@ async function main() {
   const gender = String(process.env.CREATE_USER_GENDER || 'other').trim().toLowerCase();
   if (!/^[a-z0-9_]{3,20}$/.test(account)) throw new Error('账号需为3-20位字母、数字或下划线');
   if (password.length < 8) throw new Error('密码至少8位');
+  if (password.length > 128) throw new Error('密码不能超过128位');
   if (name.length > 40) throw new Error('昵称不能超过40个字符');
   if (!['male', 'female', 'other'].includes(gender)) throw new Error('性别只能是male、female或other');
   const [existing] = await pool.query('SELECT id FROM users WHERE account = ? LIMIT 1', [account]);

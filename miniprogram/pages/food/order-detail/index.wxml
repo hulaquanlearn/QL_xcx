@@ -1,0 +1,90 @@
+<view class="order-detail-page">
+  <view wx:if="{{loading && !order}}" class="loading-state">正在准备制作说明…</view>
+
+  <block wx:if="{{order}}">
+    <view class="detail-hero">
+      <text class="detail-eyebrow">COOKING NOTE</text>
+      <view class="detail-title-row">
+        <view>
+          <text class="detail-title">{{order.menuName}}</text>
+          <text class="detail-meta">{{order.orderBy || order.author || 'TA'}} 发起 · {{dishes.length}} 道菜 · {{order.formattedTime}}</text>
+        </view>
+        <text class="detail-status {{order.status}}">{{statusText}}</text>
+      </view>
+    </view>
+
+    <view class="progress-card">
+      <view class="progress-line"></view>
+      <view class="progress-item {{progressStep >= 0 ? 'active' : ''}}">
+        <view class="progress-dot"></view><text>待接单</text>
+      </view>
+      <view class="progress-item {{progressStep >= 1 ? 'active' : ''}}">
+        <view class="progress-dot"></view><text>制作中</text>
+      </view>
+      <view class="progress-item {{progressStep >= 2 ? 'active' : ''}}">
+        <view class="progress-dot"></view><text>待确认</text>
+      </view>
+      <view class="progress-item {{progressStep >= 3 ? 'active' : ''}}">
+        <view class="progress-dot"></view><text>已完成</text>
+      </view>
+    </view>
+
+    <scroll-view wx:if="{{dishes.length > 1}}" class="dish-tabs" scroll-x enhanced show-scrollbar="{{false}}">
+      <view class="dish-tab-row">
+        <view wx:for="{{dishes}}" wx:key="id" class="dish-tab {{activeDishIndex === index ? 'active' : ''}}" bindtap="selectDish" data-index="{{index}}">{{item.name}}</view>
+      </view>
+    </scroll-view>
+
+    <view wx:if="{{activeDish}}" class="recipe-card">
+      <view class="recipe-head">
+        <image wx:if="{{activeDish.image}}" class="dish-thumb" src="{{activeDish.image}}" mode="aspectFill"></image>
+        <view wx:else class="dish-thumb placeholder"></view>
+        <view>
+          <text class="recipe-title">{{activeDish.name}}</text>
+          <text class="recipe-caption">{{activeDish.hasRecipe ? '食材与做法已整理' : '这道菜还没有制作说明'}}</text>
+        </view>
+      </view>
+
+      <image wx:if="{{activeDish.recipeImage}}" class="recipe-poster" src="{{activeDish.recipeImage}}" mode="widthFix" bindtap="previewRecipeImage"></image>
+      <text wx:if="{{activeDish.recipeImage}}" class="poster-helper">点击说明图可放大查看</text>
+
+      <view wx:if="{{activeDish.ingredients}}" class="recipe-section">
+        <text class="section-index">01</text>
+        <text class="section-title">食材与用量</text>
+        <text class="section-content">{{activeDish.ingredients}}</text>
+      </view>
+      <view wx:if="{{activeDish.steps}}" class="recipe-section">
+        <text class="section-index">02</text>
+        <text class="section-title">制作步骤</text>
+        <text class="section-content">{{activeDish.steps}}</text>
+      </view>
+      <view wx:if="{{activeDish.tips}}" class="recipe-section tip-section">
+        <text class="section-index">TIP</text>
+        <text class="section-title">小贴士</text>
+        <text class="section-content">{{activeDish.tips}}</text>
+      </view>
+
+      <view wx:if="{{!activeDish.hasRecipe}}" class="no-recipe">
+        <text class="no-recipe-title">暂无做法</text>
+        <text class="no-recipe-copy">可以按你们熟悉的方式准备，之后在菜单管理中补充制作说明。</text>
+      </view>
+    </view>
+
+    <view class="detail-note">
+      <text class="note-label">进度</text>
+      <text class="note-copy" wx:if="{{order.status === 'pending'}}">{{isMine ? '已发给 TA，等待对方接单。' : '这是 TA 发来的点单。'}}</text>
+      <text class="note-copy" wx:elif="{{order.status === 'accepted'}}">{{order.acceptedBy || 'TA'}} 正在准备这份点单。</text>
+      <text class="note-copy" wx:elif="{{order.status === 'ready'}}">{{order.acceptedBy || 'TA'}} 已经做好，等待下单人确认收到。</text>
+      <text class="note-copy" wx:else>这份点单已经完成，可以当作一次小记录保留。</text>
+    </view>
+
+    <view class="bottom-space"></view>
+    <view class="detail-action-bar">
+      <button wx:if="{{order.status === 'pending' && !isMine}}" class="detail-action primary" bindtap="acceptOrder">接下这份点单</button>
+      <button wx:elif="{{order.status === 'accepted' && isAcceptedByMe}}" class="detail-action primary" bindtap="markReady">已经做好</button>
+      <button wx:elif="{{order.status === 'ready' && isMine}}" class="detail-action primary" bindtap="confirmReceived">收到啦</button>
+      <view wx:elif="{{order.status === 'completed'}}" class="completed-copy">已完成 · 谢谢你们认真对待这顿饭</view>
+      <view wx:else class="waiting-copy">{{order.status === 'ready' ? '等待下单人确认' : order.status === 'accepted' ? '等待对方做好' : '等待对方接单'}}</view>
+    </view>
+  </block>
+</view>

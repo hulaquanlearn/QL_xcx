@@ -1,4 +1,3 @@
-const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const config = require('./config');
@@ -44,7 +43,7 @@ function legacyAvatarFilename(value) {
   return match ? match[1] : '';
 }
 
-function assertMediaKeyForCouple(value, coupleId, { allowCloud = true, allowEmpty = true } = {}) {
+function assertMediaKeyForCouple(value, coupleId, { allowEmpty = true } = {}) {
   const key = String(value || '');
   if (!key && allowEmpty) return;
   const parsed = parseMediaKey(key);
@@ -53,7 +52,6 @@ function assertMediaKeyForCouple(value, coupleId, { allowCloud = true, allowEmpt
     return;
   }
   if (legacyAvatarFilename(key)) return;
-  if (allowCloud && key.startsWith('cloud://')) return;
   throw new ApiError(400, '图片地址无效');
 }
 
@@ -80,28 +78,11 @@ function mediaPath(coupleId, filename) {
   return path.join(coupleDirectory(coupleId), filename);
 }
 
-async function writeMedia(coupleId, encoded) {
-  const { buffer, type } = decodeImage(encoded);
-  const directory = coupleDirectory(coupleId);
-  await fs.promises.mkdir(directory, { recursive: true });
-  const filename = `${crypto.randomBytes(16).toString('hex')}.${type.extension}`;
-  await fs.promises.writeFile(mediaPath(coupleId, filename), buffer, { flag: 'wx' });
-  return {
-    key: `server-media:${coupleId}:${filename}`,
-    filename,
-    contentType: type.contentType
-  };
-}
-
 async function deleteMediaKey(key) {
   const parsed = parseMediaKey(key);
   if (!parsed) return false;
   await fs.promises.unlink(mediaPath(parsed.coupleId, parsed.filename)).catch(() => {});
   return true;
-}
-
-async function removeCoupleMedia(coupleId) {
-  await fs.promises.rm(coupleDirectory(coupleId), { recursive: true, force: true });
 }
 
 async function isMediaReferenced(pool, key) {
@@ -136,9 +117,6 @@ module.exports = {
   assertMediaKeyForCouple,
   collectMediaKeys,
   mediaPath,
-  writeMedia,
-  deleteMediaKey,
-  removeCoupleMedia,
   isMediaReferenced,
   removeMediaIfUnreferenced,
   removeMediaKeysIfUnreferenced

@@ -1,5 +1,39 @@
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+function parseDateTime(value) {
+  if (value && typeof value.toDate === 'function') return parseDateTime(value.toDate());
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : new Date(value.getTime());
+  }
+  if (typeof value === 'number') {
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+
+  const text = String(value || '').trim();
+  const local = text.match(
+    /^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3}))?)?)?$/
+  );
+  if (local) {
+    const milliseconds = Number(String(local[7] || '').padEnd(3, '0'));
+    const date = new Date(
+      Number(local[1]),
+      Number(local[2]) - 1,
+      Number(local[3]),
+      Number(local[4] || 0),
+      Number(local[5] || 0),
+      Number(local[6] || 0),
+      milliseconds
+    );
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+
+  const iso = text.includes(' ') ? text.replace(' ', 'T') : text;
+  if (!/^\d{4}-\d{2}-\d{2}T/.test(iso)) return null;
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
 function parseDateOnly(value) {
   if (value instanceof Date && !Number.isNaN(value.getTime())) {
     return new Date(value.getFullYear(), value.getMonth(), value.getDate());
@@ -62,6 +96,7 @@ function getNextAnnualStatus(value, now = new Date()) {
 }
 
 module.exports = {
+  parseDateTime,
   parseDateOnly,
   toDateInputValue,
   formatDate,

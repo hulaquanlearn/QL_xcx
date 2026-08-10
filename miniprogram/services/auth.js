@@ -13,4 +13,8 @@ function clearSession() {
   wx.removeStorageSync('loginInfo');
 }
 
-module.exports = { getToken, getUser, setSession, clearSession };
+function isExpiredSessionError(error) {
+  return Number(error && error.statusCode) === 401;
+}
+
+module.exports = { getToken, getUser, setSession, clearSession, isExpiredSessionError };

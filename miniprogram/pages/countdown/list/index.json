@@ -2,5 +2,6 @@
   "usingComponents": {},
   "navigationBarBackgroundColor": "#F6F4EF",
   "navigationBarTitleText": "纪念日",
-  "navigationBarTextStyle": "black"
+  "navigationBarTextStyle": "black",
+  "enablePullDownRefresh": true
 }

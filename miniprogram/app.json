@@ -6,6 +6,7 @@
     "pages/countdown/detail/index",
     "pages/album/index",
     "pages/food/index",
+    "pages/food/order-detail/index",
     "pages/activity/index",
     "pages/mine/index"
   ],

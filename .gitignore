@@ -6,6 +6,7 @@ coverage/
 .idea/
 .agents/
 .codex/
+.uploads/
 project.private.config.json
 release/
 *.log

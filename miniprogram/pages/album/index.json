@@ -2,5 +2,7 @@
   "usingComponents": {},
   "navigationBarBackgroundColor": "#F6F4EF",
   "navigationBarTitleText": "共同相册",
-  "navigationBarTextStyle": "black"
+  "navigationBarTextStyle": "black",
+  "enablePullDownRefresh": true,
+  "onReachBottomDistance": 300
 }

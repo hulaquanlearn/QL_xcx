@@ -26,10 +26,11 @@ test('media keys are bound to one couple', () => {
   });
   assert.doesNotThrow(() => assertMediaKeyForCouple(key, 12));
   assert.throws(() => assertMediaKeyForCouple(key, 13), /不属于当前情侣空间/);
+  assert.throws(() => assertMediaKeyForCouple('cloud://legacy', 12), /图片地址无效/);
 });
 
 test('media cleanup finds keys nested in menu and order dishes', () => {
   const key = `server-media:7:${'b'.repeat(32)}.webp`;
-  const keys = collectMediaKeys({ dishes: [{ image: key }, { image: 'cloud://legacy' }] });
+  const keys = collectMediaKeys({ dishes: [{ image: key }, { image: 'legacy-invalid-key' }] });
   assert.deepEqual([...keys], [key]);
 });

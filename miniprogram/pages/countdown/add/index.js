@@ -1,5 +1,6 @@
 // pages/countdown/add/index.js
 const app = getApp()
+const api = require('../../../services/api')
 const dateUtils = require('../../../utils/date')
 
 Page({
@@ -24,7 +25,7 @@ Page({
   
   // 检查登录状态
   checkLogin: function() {
-    if (!app.globalData.openid || !app.globalData.coupleId) {
+    if (!app.globalData.userId || !app.globalData.coupleId) {
       wx.redirectTo({ url: '/pages/index/index' });
       return false;
     }
@@ -33,16 +34,15 @@ Page({
   
   // 加载纪念日详情
   loadCountdown: function(id) {
-    const db = wx.cloud.database();
-    db.collection('countdown').doc(id).get().then(res => {
-      if (res.data) {
-        const date = dateUtils.toDateInputValue(res.data.date);
+    api.get('countdown', id).then(item => {
+      if (item) {
+        const date = dateUtils.toDateInputValue(item.date);
         this.setData({
-          title: res.data.title,
+          title: item.title,
           date: date,
           dateText: date,
-          description: res.data.description || '',
-          isAnniversary: res.data.isAnniversary
+          description: item.description || '',
+          isAnniversary: item.isAnniversary
         });
       }
     }).catch(err => {
@@ -90,7 +90,6 @@ Page({
       return;
     }
     
-    const db = wx.cloud.database();
     const coupleId = app.globalData.coupleId;
     
     if (!coupleId) {
@@ -102,13 +101,11 @@ Page({
 
     if (this.data.countdownId) {
       // 更新纪念日
-      db.collection('countdown').doc(this.data.countdownId).update({
-        data: {
-          title: title,
-          date: date,
-          description: description,
-          isAnniversary: this.data.isAnniversary
-        }
+      api.update('countdown', this.data.countdownId, {
+        title: title,
+        date: date,
+        description: description,
+        isAnniversary: this.data.isAnniversary
       }).then(() => {
         this.setData({ loading: false });
         wx.showToast({ title: '更新成功', icon: 'success' });
@@ -120,15 +117,11 @@ Page({
       });
     } else {
       // 添加纪念日
-      db.collection('countdown').add({
-        data: {
-          title: title,
-          date: date,
-          description: description,
-          isAnniversary: this.data.isAnniversary,
-          coupleId: coupleId,
-          createdAt: db.serverDate()
-        }
+      api.create('countdown', {
+        title: title,
+        date: date,
+        description: description,
+        isAnniversary: this.data.isAnniversary
       }).then(() => {
         this.setData({ loading: false });
         wx.showToast({ title: '添加成功', icon: 'success' });

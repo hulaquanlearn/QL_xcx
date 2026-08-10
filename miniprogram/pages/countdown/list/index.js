@@ -1,5 +1,6 @@
 // pages/countdown/list/index.js
 const app = getApp()
+const api = require('../../../services/api')
 const dateUtils = require('../../../utils/date')
 
 Page({
@@ -23,7 +24,7 @@ Page({
   
   // 检查登录状态
   checkLogin: function() {
-    if (!app.globalData.openid || !app.globalData.coupleId) {
+    if (!app.globalData.userId || !app.globalData.coupleId) {
       wx.redirectTo({ url: '/pages/index/index' });
       return false;
     }
@@ -33,7 +34,6 @@ Page({
   // 加载纪念日
   loadCountdowns: function() {
     this.setData({ loading: true });
-    const db = wx.cloud.database();
     const coupleId = app.globalData.coupleId;
     
     if (!coupleId) {
@@ -44,11 +44,9 @@ Page({
       return;
     }
     
-    db.collection('countdown').where({
-      coupleId: coupleId
-    }).orderBy('date', 'asc').get().then(res => {
+    return api.list('countdown', { limit: 200 }).then(rows => {
       // 使用完整的年月日计算，修改年份后展示会同步变化。
-      const countdowns = res.data.map(item => {
+      const countdowns = rows.map(item => {
         const status = dateUtils.getDateStatus(item.date);
 
         return {
@@ -125,16 +123,13 @@ Page({
   // 置顶/取消置顶
   toggleHomeDisplay: function(e) {
     const id = e.currentTarget.dataset.id;
-    const db = wx.cloud.database();
     
     // 找到当前项
     const item = this.data.countdowns.find(c => c._id === id);
     const isTop = item.isTop || false;
     
-    db.collection('countdown').doc(id).update({
-      data: {
-        isTop: !isTop
-      }
+    api.update('countdown', id, {
+      isTop: !isTop
     }).then(() => {
       wx.showToast({ title: isTop ? '已取消置顶' : '已置顶', icon: 'success' });
       this.loadCountdowns();
@@ -155,9 +150,7 @@ Page({
       success: res => {
         if (res.confirm) {
           that.setData({ loading: true });
-          const db = wx.cloud.database();
-          
-          db.collection('countdown').doc(id).remove().then(() => {
+          api.remove('countdown', id).then(() => {
             that.setData({ loading: false });
             wx.showToast({ title: '删除成功', icon: 'success' });
             that.loadCountdowns();
@@ -182,9 +175,7 @@ Page({
       success: res => {
         if (res.confirm) {
           that.setData({ loading: true });
-          const db = wx.cloud.database();
-          
-          db.collection('countdown').doc(id).remove().then(() => {
+          api.remove('countdown', id).then(() => {
             that.setData({ loading: false });
             wx.showToast({ title: '删除成功', icon: 'success' });
             that.loadCountdowns();
@@ -202,12 +193,8 @@ Page({
   toggleAnniversary: function(e) {
     const id = e.currentTarget.dataset.id;
     const isAnniversary = e.currentTarget.dataset.anniversary;
-    const db = wx.cloud.database();
-    
-    db.collection('countdown').doc(id).update({
-      data: {
-        isAnniversary: !isAnniversary
-      }
+    api.update('countdown', id, {
+      isAnniversary: !isAnniversary
     }).then(() => {
       // 刷新数据
       this.loadCountdowns();
@@ -218,7 +205,6 @@ Page({
   
   // 下拉刷新
   onPullDownRefresh: function() {
-    this.loadCountdowns();
-    wx.stopPullDownRefresh();
+    Promise.resolve(this.loadCountdowns()).finally(() => wx.stopPullDownRefresh());
   }
 })

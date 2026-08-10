@@ -36,6 +36,6 @@ test('avatar and media downloads are scoped to the authenticated couple', () => 
   assert.equal(source.includes('WHERE couple_id=? AND avatar_key=? LIMIT 1'), true);
   assert.equal(source.includes("String(req.userRow.couple_id || '') !== coupleId"), true);
   assert.equal(source.includes("server-avatar:${filename}"), true);
-  assert.equal(source.includes("['album', 'dish'].includes(purpose)"), true);
+  assert.equal(source.includes("['album', 'dish', 'recipe'].includes(purpose)"), true);
   assert.equal(source.includes("router.patch('/avatars'"), false);
 });

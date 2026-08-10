@@ -7,6 +7,7 @@ const {
   collectMediaKeys,
   removeMediaKeysIfUnreferenced
 } = require('../media');
+const { checkText } = require('../content-safety');
 
 const router = express.Router();
 
@@ -38,14 +39,18 @@ const definitions = {
   orders: {
     table: 'orders',
     order: 'created_at DESC',
+    join: 'LEFT JOIN users accepted_user ON accepted_user.id=r.accepted_by_user_id AND accepted_user.couple_id=r.couple_id',
+    select: ',accepted_user.name accepted_user_name',
     json: ['dishes', 'menuNames'],
-    fields: { dishes: 'dishes', menuNames: 'menu_names', mealType: 'meal_type', orderBy: 'order_by', note: 'note', status: 'status', acceptedBy: 'accepted_by', acceptedTime: 'accepted_at', completedAt: 'completed_at' }
+    fields: { dishes: 'dishes', menuNames: 'menu_names', mealType: 'meal_type', orderBy: 'order_by', note: 'note', status: 'status', acceptedBy: 'accepted_by', acceptedByUserId: 'accepted_by_user_id', acceptedTime: 'accepted_at', readyAt: 'ready_at', completedAt: 'completed_at' },
+    extras: row => ({ acceptedBy: row.accepted_user_name || row.accepted_by || '' })
   }
 };
 
 const bools = new Set(['is_anniversary', 'is_top']);
 const mealTypes = new Set(['breakfast', 'lunch', 'dinner', 'snack']);
-const orderStatuses = new Set(['pending', 'accepted', 'completed']);
+const orderStatuses = new Set(['pending', 'accepted', 'ready', 'completed']);
+const taskStatuses = new Set(['pending', 'completed']);
 
 function definition(name) {
   const value = definitions[name];
@@ -62,6 +67,18 @@ function parseJson(value, fallback = []) {
   }
 }
 
+function isValidDateOnly(value) {
+  const match = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return false;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return date.getUTCFullYear() === year
+    && date.getUTCMonth() === month - 1
+    && date.getUTCDate() === day;
+}
+
 function output(row, definitionValue) {
   const item = {
     _id: String(row.id),
@@ -76,6 +93,7 @@ function output(row, definitionValue) {
     if (definitionValue.json?.includes(client)) value = parseJson(value);
     if (bools.has(column)) value = Boolean(value);
     if (client === 'completed') value = row.status === 'completed';
+    if (client === 'acceptedByUserId' && value) value = String(value);
     item[client] = value;
   }
   if (definitionValue.extras) Object.assign(item, definitionValue.extras(row));
@@ -84,20 +102,63 @@ function output(row, definitionValue) {
 
 function cleanDishes(value, coupleId) {
   const dishes = parseJson(value);
-  if (!Array.isArray(dishes) || dishes.length > 100) throw new ApiError(400, '菜品数据无效');
+  if (!Array.isArray(dishes) || !dishes.length || dishes.length > 100) {
+    throw new ApiError(400, '至少需要一道菜，且每份最多100道菜');
+  }
+  const names = new Set();
+  const ids = new Set();
   return dishes.map((dish, index) => {
     const name = String(dish?.name || '').trim();
     if (!name || name.length > 100) throw new ApiError(400, `第${index + 1}道菜名称无效`);
+    const nameKey = name.toLocaleLowerCase();
+    if (names.has(nameKey)) throw new ApiError(400, `菜品名称不能重复：${name}`);
+    names.add(nameKey);
+    const id = String(dish.id || `${Date.now()}-${index}`).slice(0, 80);
+    if (ids.has(id)) throw new ApiError(400, `第${index + 1}道菜标识重复`);
+    ids.add(id);
     const image = String(dish.imageKey || dish.image || '');
+    const recipeImage = String(dish.recipeImageKey || dish.recipeImage || '');
     assertMediaKeyForCouple(image, coupleId);
+    assertMediaKeyForCouple(recipeImage, coupleId);
+    const ingredients = String(dish.ingredients || '').trim();
+    const steps = String(dish.steps || '').trim();
+    const tips = String(dish.tips || '').trim();
+    if (ingredients.length > 1200) throw new ApiError(400, `第${index + 1}道菜食材说明过长`);
+    if (steps.length > 4000) throw new ApiError(400, `第${index + 1}道菜制作步骤过长`);
+    if (tips.length > 1000) throw new ApiError(400, `第${index + 1}道菜小贴士过长`);
     return {
-      ...dish,
-      id: String(dish.id || `${Date.now()}-${index}`).slice(0, 80),
+      id,
       name,
       image,
-      imageKey: undefined
+      recipeImage,
+      ingredients,
+      steps,
+      tips
     };
   });
+}
+
+function cleanMenuNames(value) {
+  const source = parseJson(value);
+  if (!Array.isArray(source) || source.length > 20) throw new ApiError(400, '菜单来源数据无效');
+  const names = [];
+  const seen = new Set();
+  source.forEach((item, index) => {
+    const name = String(item || '').trim();
+    if (!name || name.length > 100) throw new ApiError(400, `第${index + 1}个菜单名称无效`);
+    const key = name.toLocaleLowerCase();
+    if (!seen.has(key)) {
+      seen.add(key);
+      names.push(name);
+    }
+  });
+  return names;
+}
+
+function assertTextLength(value, maximum, message) {
+  if (value !== undefined && String(value || '').trim().length > maximum) {
+    throw new ApiError(400, message);
+  }
 }
 
 function normalizeBody(resource, body, coupleId) {
@@ -116,6 +177,10 @@ function normalizeBody(resource, body, coupleId) {
       throw new ApiError(400, '餐别无效');
     }
   }
+  if (resource === 'orders') {
+    if (normalized.menuNames !== undefined) normalized.menuNames = cleanMenuNames(normalized.menuNames);
+    assertTextLength(normalized.note, 500, '点单备注不能超过500字');
+  }
   if (resource === 'orders' && normalized.status !== undefined && !orderStatuses.has(String(normalized.status))) {
     throw new ApiError(400, '订单状态无效');
   }
@@ -123,19 +188,77 @@ function normalizeBody(resource, body, coupleId) {
     if (normalized.title !== undefined && (!String(normalized.title).trim() || String(normalized.title).trim().length > 100)) {
       throw new ApiError(400, '纪念日标题无效');
     }
-    if (normalized.date !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(String(normalized.date))) {
+    if (normalized.date !== undefined && !isValidDateOnly(normalized.date)) {
       throw new ApiError(400, '纪念日日期无效');
     }
+    assertTextLength(normalized.description, 500, '纪念日说明不能超过500字');
   }
-  if (resource === 'tasks' && normalized.title !== undefined) {
-    normalized.title = String(normalized.title).trim();
-    if (!normalized.title || normalized.title.length > 150) throw new ApiError(400, '清单标题无效');
+  if (resource === 'tasks') {
+    if (normalized.title !== undefined) {
+      normalized.title = String(normalized.title).trim();
+      if (!normalized.title || normalized.title.length > 150) throw new ApiError(400, '清单标题无效');
+    }
+    if (normalized.status !== undefined && !taskStatuses.has(String(normalized.status))) {
+      throw new ApiError(400, '清单状态无效');
+    }
+    assertTextLength(normalized.description, 500, '清单说明不能超过500字');
   }
   if (resource === 'menus' && normalized.name !== undefined) {
     normalized.name = String(normalized.name).trim();
     if (!normalized.name || normalized.name.length > 100) throw new ApiError(400, '菜单名称无效');
   }
+  if (resource === 'album') assertTextLength(normalized.description, 300, '照片说明不能超过300字');
   return normalized;
+}
+
+function validateCreateBody(resource, body) {
+  if (resource === 'countdown' && (!body.title || !body.date)) {
+    throw new ApiError(400, '纪念日标题和日期不能为空');
+  }
+  if (resource === 'album' && !body.imgUrl) throw new ApiError(400, '相册图片不能为空');
+  if (resource === 'tasks' && !body.title) throw new ApiError(400, '清单标题不能为空');
+  if (resource === 'menus' && (!body.name || !Array.isArray(body.dishes) || !body.dishes.length)) {
+    throw new ApiError(400, '菜单名称和菜品不能为空');
+  }
+  if (resource === 'orders' && (!Array.isArray(body.dishes) || !body.dishes.length)) {
+    throw new ApiError(400, '点单至少需要一道菜');
+  }
+}
+
+function moderationText(resource, body) {
+  const values = [];
+  const add = value => {
+    const text = String(value || '').trim();
+    if (text) values.push(text);
+  };
+  if (resource === 'countdown') {
+    add(body.title);
+    add(body.description);
+  } else if (resource === 'album') {
+    add(body.description);
+  } else if (resource === 'tasks') {
+    add(body.title);
+    add(body.description);
+  } else if (resource === 'menus') {
+    add(body.name);
+    (body.dishes || []).forEach(dish => {
+      add(dish?.name);
+      add(dish?.ingredients);
+      add(dish?.steps);
+      add(dish?.tips);
+    });
+  } else if (resource === 'orders') {
+    add(body.note);
+    (body.dishes || []).forEach(dish => {
+      add(dish?.name);
+      add(dish?.ingredients);
+      add(dish?.steps);
+      add(dish?.tips);
+    });
+    const menuNames = Array.isArray(body.menuNames) ? body.menuNames : parseJson(body.menuNames);
+    (menuNames || []).forEach(add);
+  }
+  return values.join('\n');
 }
 
 function input(body, definitionValue) {
@@ -192,20 +315,49 @@ function rethrowMenuDuplicate(error) {
 router.use(requireAuth);
 
 router.get('/:resource', asyncHandler(async (req, res) => {
-  const definitionValue = definition(req.params.resource);
+  const resource = req.params.resource;
+  const definitionValue = definition(resource);
   const coupleId = ensureCouple(req);
-  const limit = Math.min(Math.max(Number(req.query.limit) || 100, 1), 200);
+  const pagedAlbum = resource === 'album' && String(req.query.paged || '') === '1';
+  const limitMaximum = pagedAlbum ? 50 : 200;
+  const limit = Math.min(Math.max(Number(req.query.limit) || (pagedAlbum ? 30 : 100), 1), limitMaximum);
+  const cursor = pagedAlbum && /^\d+$/.test(String(req.query.cursor || ''))
+    ? String(req.query.cursor)
+    : '';
+  const conditions = ['r.couple_id=?'];
+  const params = [coupleId];
+  if (cursor) {
+    conditions.push('r.id<?');
+    params.push(cursor);
+  }
+  if (resource === 'album' && String(req.query.linkedTasks || '') === '1') {
+    conditions.push('r.task_id IS NOT NULL');
+  }
+  const requestedRows = pagedAlbum ? limit + 1 : limit;
   const [rows] = await pool.query(
     `SELECT r.*,u.name author_name${definitionValue.select || ''}
      FROM ${definitionValue.table} r
      JOIN users u ON u.id=r.author_id
      ${definitionValue.join || ''}
-     WHERE r.couple_id=?
-     ORDER BY ${definitionValue.order}
+     WHERE ${conditions.join(' AND ')}
+     ORDER BY ${pagedAlbum ? 'r.id DESC' : definitionValue.order}
      LIMIT ?`,
-    [coupleId, limit]
+    [...params, requestedRows]
   );
-  res.json({ success: true, data: rows.map(row => output(row, definitionValue)) });
+  if (pagedAlbum) {
+    const hasMore = rows.length > limit;
+    const pageRows = hasMore ? rows.slice(0, limit) : rows;
+    const items = pageRows.map(row => output(row, definitionValue));
+    return res.json({
+      success: true,
+      data: {
+        items,
+        hasMore,
+        nextCursor: hasMore && pageRows.length ? String(pageRows[pageRows.length - 1].id) : ''
+      }
+    });
+  }
+  return res.json({ success: true, data: rows.map(row => output(row, definitionValue)) });
 }));
 
 router.get('/:resource/:id', asyncHandler(async (req, res) => {
@@ -228,9 +380,9 @@ router.post('/orders/:id/accept', asyncHandler(async (req, res) => {
   const coupleId = ensureCouple(req);
   const [result] = await pool.query(
     `UPDATE orders
-     SET status='accepted',accepted_by=?,accepted_at=NOW()
+     SET status='accepted',accepted_by=?,accepted_by_user_id=?,accepted_at=NOW()
      WHERE id=? AND couple_id=? AND author_id<>? AND status='pending'`,
-    [req.userRow.name, req.params.id, coupleId, req.userRow.id]
+    [req.userRow.name, req.userRow.id, req.params.id, coupleId, req.userRow.id]
   );
   if (result.affectedRows) {
     return res.json({ success: true, data: null });
@@ -247,6 +399,120 @@ router.post('/orders/:id/accept', asyncHandler(async (req, res) => {
   throw new ApiError(409, rows[0].status === 'accepted' ? '这份点单已经有人接了' : '点单状态已变化');
 }));
 
+router.post('/orders/:id/complete', asyncHandler(async (req, res) => {
+  const coupleId = ensureCouple(req);
+  const [result] = await pool.query(
+    `UPDATE orders
+     SET status='ready',ready_at=COALESCE(ready_at,NOW())
+     WHERE id=? AND couple_id=? AND accepted_by_user_id=? AND status='accepted'`,
+    [req.params.id, coupleId, req.userRow.id]
+  );
+  if (result.affectedRows) {
+    return res.json({ success: true, data: { status: 'ready' } });
+  }
+
+  const [rows] = await pool.query(
+    'SELECT status,accepted_by_user_id FROM orders WHERE id=? AND couple_id=? LIMIT 1',
+    [req.params.id, coupleId]
+  );
+  if (!rows[0]) throw new ApiError(404, '点单不存在');
+  if (rows[0].status === 'ready') throw new ApiError(409, '这份点单已经做好了');
+  if (rows[0].status === 'completed') throw new ApiError(409, '这份点单已经完成');
+  if (String(rows[0].accepted_by_user_id || '') !== String(req.userRow.id)) {
+    throw new ApiError(403, '只有接单人可以标记已做好');
+  }
+  throw new ApiError(409, '请先接单');
+}));
+
+router.post('/orders/:id/ready', asyncHandler(async (req, res) => {
+  const coupleId = ensureCouple(req);
+  const [result] = await pool.query(
+    `UPDATE orders
+     SET status='ready',ready_at=NOW()
+     WHERE id=? AND couple_id=? AND accepted_by_user_id=? AND status='accepted'`,
+    [req.params.id, coupleId, req.userRow.id]
+  );
+  if (result.affectedRows) {
+    return res.json({ success: true, data: { status: 'ready' } });
+  }
+
+  const [rows] = await pool.query(
+    'SELECT status,accepted_by_user_id FROM orders WHERE id=? AND couple_id=? LIMIT 1',
+    [req.params.id, coupleId]
+  );
+  if (!rows[0]) throw new ApiError(404, '点单不存在');
+  if (rows[0].status === 'ready') throw new ApiError(409, '这份点单已经做好了');
+  if (rows[0].status === 'completed') throw new ApiError(409, '这份点单已经完成');
+  if (String(rows[0].accepted_by_user_id || '') !== String(req.userRow.id)) {
+    throw new ApiError(403, '只有接单人可以标记已做好');
+  }
+  throw new ApiError(409, '请先接单');
+}));
+
+router.post('/orders/:id/confirm', asyncHandler(async (req, res) => {
+  const coupleId = ensureCouple(req);
+  const [result] = await pool.query(
+    `UPDATE orders
+     SET status='completed',completed_at=NOW()
+     WHERE id=? AND couple_id=? AND author_id=? AND status='ready'`,
+    [req.params.id, coupleId, req.userRow.id]
+  );
+  if (result.affectedRows) {
+    return res.json({ success: true, data: { status: 'completed' } });
+  }
+
+  const [rows] = await pool.query(
+    'SELECT author_id,status FROM orders WHERE id=? AND couple_id=? LIMIT 1',
+    [req.params.id, coupleId]
+  );
+  if (!rows[0]) throw new ApiError(404, '点单不存在');
+  if (rows[0].status === 'completed') throw new ApiError(409, '这份点单已经确认完成');
+  if (String(rows[0].author_id) !== String(req.userRow.id)) {
+    throw new ApiError(403, '只有下单人可以确认收到');
+  }
+  throw new ApiError(409, rows[0].status === 'accepted' ? '请等待对方做好' : '请先等待对方接单');
+}));
+
+router.post('/albums/batch', asyncHandler(async (req, res) => {
+  const coupleId = ensureCouple(req);
+  const images = req.body?.images;
+  if (!Array.isArray(images) || !images.length || images.length > 9) {
+    throw new ApiError(400, '每次可以保存1至9张照片');
+  }
+  const keys = images.map(value => {
+    const key = String(value || '');
+    assertMediaKeyForCouple(key, coupleId, { allowEmpty: false });
+    return key;
+  });
+  const description = String(req.body.description || '').trim().slice(0, 300);
+  const photoDate = String(req.body.photoDate || '').trim();
+  if (photoDate && !isValidDateOnly(photoDate)) {
+    throw new ApiError(400, '照片日期无效');
+  }
+  await checkText(description, { openid: req.userRow.wechat_openid, scene: 4 });
+
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+    const ids = [];
+    for (const key of keys) {
+      const [created] = await connection.query(
+        `INSERT INTO albums(couple_id,author_id,image_url,storage_key,description,photo_date)
+         VALUES(?,?,?,?,?,?)`,
+        [coupleId, req.userRow.id, key, key, description, photoDate || null]
+      );
+      ids.push(String(created.insertId));
+    }
+    await connection.commit();
+    return res.status(201).json({ success: true, data: { ids, count: ids.length } });
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
+}));
+
 router.post('/albums/task-photos', asyncHandler(async (req, res) => {
   const coupleId = ensureCouple(req);
   const images = req.body?.images;
@@ -260,6 +526,7 @@ router.post('/albums/task-photos', asyncHandler(async (req, res) => {
     return key;
   });
   const description = String(req.body.description || task.title || '').trim().slice(0, 300);
+  await checkText(description, { openid: req.userRow.wechat_openid, scene: 4 });
 
   const connection = await pool.getConnection();
   try {
@@ -301,6 +568,10 @@ router.post('/menus/batch', asyncHandler(async (req, res) => {
       dishes: normalized.dishes
     };
   });
+  await checkText(menus.map(menu => moderationText('menus', menu)).join('\n'), {
+    openid: req.userRow.wechat_openid,
+    scene: 4
+  });
 
   const connection = await pool.getConnection();
   try {
@@ -334,7 +605,11 @@ router.post('/:resource', asyncHandler(async (req, res) => {
   const definitionValue = definition(resource);
   const coupleId = ensureCouple(req);
   const body = normalizeBody(resource, req.body, coupleId);
-  if (resource === 'album' && !body.imgUrl) throw new ApiError(400, '相册图片不能为空');
+  validateCreateBody(resource, body);
+  await checkText(moderationText(resource, body), {
+    openid: req.userRow.wechat_openid,
+    scene: 4
+  });
   if (resource === 'album' && body.taskId) await ensureTaskForCouple(pool, coupleId, body.taskId);
   if (resource === 'menus') {
     if (!body.name) throw new ApiError(400, '菜单名称不能为空');
@@ -343,7 +618,9 @@ router.post('/:resource', asyncHandler(async (req, res) => {
   const data = input(body, definitionValue);
   if (resource === 'orders') {
     delete data.accepted_by;
+    delete data.accepted_by_user_id;
     delete data.accepted_at;
+    delete data.ready_at;
     delete data.completed_at;
     data.status = 'pending';
     data.order_by = req.userRow.name;
@@ -373,11 +650,21 @@ router.patch('/:resource/:id', asyncHandler(async (req, res) => {
   const definitionValue = definition(resource);
   const coupleId = ensureCouple(req);
   const body = normalizeBody(resource, req.body, coupleId);
+  if (resource === 'orders' && body.status !== undefined) {
+    throw new ApiError(400, '请使用接单或完成订单操作');
+  }
+  await checkText(moderationText(resource, body), {
+    openid: req.userRow.wechat_openid,
+    scene: 4
+  });
   const data = input(body, definitionValue);
   if (resource === 'orders') {
     delete data.order_by;
+    delete data.status;
     delete data.accepted_by;
+    delete data.accepted_by_user_id;
     delete data.accepted_at;
+    delete data.ready_at;
     delete data.completed_at;
   }
   const requestedKeys = Object.keys(data);
@@ -396,18 +683,8 @@ router.patch('/:resource/:id', asyncHandler(async (req, res) => {
     const isAuthor = String(beforeRows[0].author_id) === String(req.userRow.id);
     const changedContent = requestedKeys.some(key => key !== 'status');
     if (changedContent && !isAuthor) throw new ApiError(403, '只能修改自己发起的点单');
-    if (data.status !== undefined) {
-      if (data.status === 'accepted') {
-        if (isAuthor) throw new ApiError(403, '不能接自己的点单');
-        if (beforeRows[0].status !== 'pending') throw new ApiError(409, '点单状态已变化');
-        data.accepted_by = req.userRow.name;
-        data.accepted_at = new Date();
-      } else if (data.status === 'completed') {
-        if (beforeRows[0].status !== 'accepted') throw new ApiError(409, '请先接单');
-        data.completed_at = new Date();
-      } else if (data.status !== beforeRows[0].status) {
-        throw new ApiError(409, '不能恢复之前的点单状态');
-      }
+    if (changedContent && beforeRows[0].status !== 'pending') {
+      throw new ApiError(409, '点单已被接收，不能再修改内容');
     }
   }
   const keys = Object.keys(data);
@@ -433,6 +710,41 @@ router.patch('/:resource/:id', asyncHandler(async (req, res) => {
   res.json({ success: true, data: null });
 }));
 
+router.delete('/albums/batch', asyncHandler(async (req, res) => {
+  const coupleId = ensureCouple(req);
+  const sourceIds = req.body?.ids;
+  if (!Array.isArray(sourceIds)) throw new ApiError(400, '照片列表无效');
+  const ids = Array.from(new Set(sourceIds.map(value => String(value || '').trim())));
+  if (!ids.length || ids.length > 50 || ids.some(id => !/^\d+$/.test(id))) {
+    throw new ApiError(400, '每次可以删除1至50张照片');
+  }
+
+  const connection = await pool.getConnection();
+  let oldMediaKeys = [];
+  try {
+    await connection.beginTransaction();
+    const placeholders = ids.map(() => '?').join(',');
+    const [rows] = await connection.query(
+      `SELECT * FROM albums WHERE couple_id=? AND id IN (${placeholders}) FOR UPDATE`,
+      [coupleId, ...ids]
+    );
+    if (rows.length !== ids.length) throw new ApiError(404, '部分照片不存在，请刷新后重试');
+    oldMediaKeys = rows.flatMap(row => mediaKeysFromRow('album', row));
+    await connection.query(
+      `DELETE FROM albums WHERE couple_id=? AND id IN (${placeholders})`,
+      [coupleId, ...ids]
+    );
+    await connection.commit();
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
+  await removeMediaKeysIfUnreferenced(pool, oldMediaKeys);
+  res.json({ success: true, data: { count: ids.length } });
+}));
+
 router.delete('/:resource/:id', asyncHandler(async (req, res) => {
   const resource = req.params.resource;
   const definitionValue = definition(resource);
@@ -445,6 +757,11 @@ router.delete('/:resource/:id', asyncHandler(async (req, res) => {
   if (resource === 'orders' && String(beforeRows[0].author_id) !== String(req.userRow.id)) {
     throw new ApiError(403, '只能删除自己发起的点单');
   }
+  if (resource === 'orders' && ['accepted', 'ready'].includes(beforeRows[0].status)) {
+    throw new ApiError(409, beforeRows[0].status === 'ready'
+      ? '对方已经做好，请先确认收到'
+      : '对方已接单，请等待做好后再处理');
+  }
   const oldMediaKeys = mediaKeysFromRow(resource, beforeRows[0]);
   const [result] = await pool.query(
     `DELETE FROM ${definitionValue.table} WHERE id=? AND couple_id=?`,
@@ -456,3 +773,10 @@ router.delete('/:resource/:id', asyncHandler(async (req, res) => {
 }));
 
 module.exports = router;
+module.exports._test = {
+  cleanDishes,
+  cleanMenuNames,
+  isValidDateOnly,
+  normalizeBody,
+  validateCreateBody
+};

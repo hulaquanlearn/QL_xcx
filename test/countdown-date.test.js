@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
+  parseDateTime,
   formatDate,
   getDateStatus,
   toDateInputValue
@@ -20,4 +21,14 @@ test('countdown uses the selected year instead of forcing an annual recurrence',
   assert.equal(oldDate.daysUnit, '天前');
   assert.equal(futureDate.days, 73);
   assert.equal(futureDate.daysUnit, '天后');
+});
+
+test('SQL datetime strings are parsed without the iOS-incompatible Date constructor format', () => {
+  const value = parseDateTime('2026-07-27 14:50:05');
+  assert.equal(value.getFullYear(), 2026);
+  assert.equal(value.getMonth(), 6);
+  assert.equal(value.getDate(), 27);
+  assert.equal(value.getHours(), 14);
+  assert.equal(value.getMinutes(), 50);
+  assert.equal(value.getSeconds(), 5);
 });

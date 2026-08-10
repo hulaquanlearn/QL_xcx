@@ -7,9 +7,9 @@ page { background: #F6F4EF; }
 .date-section { display: flex; margin: 26rpx 2rpx 14rpx; align-items: baseline; justify-content: space-between; }
 .date-title { color: #4B504A; font-size: 27rpx; font-weight: 650; }
 .date-count { color: #989A93; font-size: 20rpx; }
-.date-photos { display: grid; grid-template-columns: repeat(3,1fr); gap: 8rpx; overflow: hidden; border-radius: 26rpx; }
-.photo-item { position: relative; height: 214rpx; overflow: hidden; background: #E3DFD7; }
-.photo-img { width: 100%; height: 100%; }
+.date-photos { display: flex; align-items: flex-start; flex-wrap: wrap; gap: 10rpx; }
+.photo-item { position: relative; width: calc(50% - 5rpx); overflow: hidden; border-radius: 20rpx; background: #E3DFD7; }
+.photo-img { display: block; width: 100%; height: auto; }
 .photo-source { position: absolute; right: 8rpx; bottom: 8rpx; left: 8rpx; overflow: hidden; padding: 8rpx 10rpx; border-radius: 10rpx; background: rgba(35,39,35,.68); color: #FFFFFF; font-size: 17rpx; text-overflow: ellipsis; white-space: nowrap; }
 .photo-selected .photo-img { opacity: .55; }
 .photo-checkbox { position: absolute; top: 12rpx; right: 12rpx; z-index: 3; display: flex; width: 40rpx; height: 40rpx; align-items: center; justify-content: center; border: 2rpx solid rgba(255,255,255,.9); border-radius: 50%; background: rgba(32,35,31,.24); color: #fff; font-size: 22rpx; }
@@ -18,3 +18,4 @@ page { background: #F6F4EF; }
 .action-btn { display: flex; height: 78rpx; align-items: center; justify-content: center; border-radius: 20rpx; color: #656A64; font-size: 25rpx; font-weight: 600; line-height: 1.4; text-align: center; }
 .upload-btn { background: #2D332F; color: #fff; }
 .batch-delete-btn { position: fixed; right: 32rpx; bottom: calc(138rpx + env(safe-area-inset-bottom)); left: 32rpx; z-index: 21; display: flex; height: 80rpx; align-items: center; justify-content: center; border-radius: 20rpx; background: #A6534B; color: #fff; font-size: 25rpx; line-height: 1.4; text-align: center; }
+.album-page-state { padding: 34rpx 0 10rpx; color: #999B94; font-size: 21rpx; text-align: center; }

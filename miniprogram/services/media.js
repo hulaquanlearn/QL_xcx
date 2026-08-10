@@ -4,18 +4,117 @@ const config = require('../config');
 
 const mediaKeyPattern = /^server-media:(\d+):([a-f0-9]{32}\.(?:jpg|png|webp))$/;
 const avatarKeyPattern = /^server-avatar:([a-f0-9]{32}\.(?:jpg|png|webp))$/;
-const migrationCache = new Map();
 const resolvedFileCache = new Map();
+const downloadPromiseCache = new Map();
+const MAX_CACHE_ENTRIES = 240;
+const MAX_UPLOAD_BYTES = 3.5 * 1024 * 1024;
+const compressionProfiles = {
+  avatar: {
+    targetBytes: 420 * 1024,
+    attempts: [
+      { quality: 84, maxEdge: 1200 },
+      { quality: 76, maxEdge: 960 },
+      { quality: 68, maxEdge: 800 }
+    ]
+  },
+  dish: {
+    targetBytes: 720 * 1024,
+    attempts: [
+      { quality: 86, maxEdge: 1600 },
+      { quality: 78, maxEdge: 1400 },
+      { quality: 70, maxEdge: 1200 }
+    ]
+  },
+  recipe: {
+    targetBytes: 1.2 * 1024 * 1024,
+    attempts: [
+      { quality: 88, maxEdge: 2400 },
+      { quality: 82, maxEdge: 2100 },
+      { quality: 76, maxEdge: 1800 }
+    ]
+  },
+  album: {
+    targetBytes: 1.6 * 1024 * 1024,
+    attempts: [
+      { quality: 88, maxEdge: 2560 },
+      { quality: 82, maxEdge: 2200 },
+      { quality: 76, maxEdge: 1920 }
+    ]
+  }
+};
 
-function compress(filePath) {
+function imageInfo(filePath) {
   return new Promise(resolve => {
-    wx.compressImage({
+    wx.getImageInfo({
       src: filePath,
-      quality: 76,
-      success: result => resolve(result.tempFilePath || filePath),
-      fail: () => resolve(filePath)
+      success: result => resolve({
+        width: Number(result.width) || 0,
+        height: Number(result.height) || 0
+      }),
+      fail: () => resolve({ width: 0, height: 0 })
     });
   });
+}
+
+function scaledSize(info, maxEdge) {
+  if (!info.width || !info.height) return null;
+  const scale = Math.min(1, maxEdge / Math.max(info.width, info.height));
+  return {
+    width: Math.max(1, Math.round(info.width * scale)),
+    height: Math.max(1, Math.round(info.height * scale))
+  };
+}
+
+function compressOnce(filePath, quality, maxEdge) {
+  return imageInfo(filePath).then(info => {
+    const size = scaledSize(info, maxEdge);
+    return new Promise(resolve => {
+      const options = {
+        src: filePath,
+        quality,
+        success: result => resolve(result.tempFilePath || filePath),
+        fail: () => resolve(filePath)
+      };
+      // Omitting both dimensions lets WeChat preserve the original ratio when
+      // image metadata is temporarily unavailable.
+      if (size) {
+        options.compressedWidth = size.width;
+        options.compressedHeight = size.height;
+      }
+      wx.compressImage(options);
+    });
+  });
+}
+
+function fileSize(filePath) {
+  return new Promise(resolve => {
+    wx.getFileInfo({
+      filePath,
+      success: result => resolve(Number(result.size) || 0),
+      fail: () => resolve(0)
+    });
+  });
+}
+
+async function compress(filePath, purpose = 'album') {
+  const profile = compressionProfiles[purpose] || compressionProfiles.album;
+  const originalSize = await fileSize(filePath);
+  if (originalSize && originalSize <= profile.targetBytes) return filePath;
+
+  let bestPath = filePath;
+  let bestSize = originalSize || Number.POSITIVE_INFINITY;
+  for (const attempt of profile.attempts) {
+    // 每次都从原图压缩，避免连续有损压缩造成明显糊化。
+    const candidate = await compressOnce(filePath, attempt.quality, attempt.maxEdge);
+    const size = await fileSize(candidate);
+    if (size && size < bestSize) {
+      bestPath = candidate;
+      bestSize = size;
+    }
+    if (size && size <= profile.targetBytes) return candidate;
+  }
+  if (bestSize <= MAX_UPLOAD_BYTES) return bestPath;
+  throw new Error('图片处理后仍超过3.5MB，请选择尺寸更小的图片');
 }
 
 function readBase64(filePath) {
@@ -30,7 +129,7 @@ function readBase64(filePath) {
 }
 
 function upload(filePath, purpose) {
-  return compress(filePath)
+  return compress(filePath, purpose)
     .then(readBase64)
     .then(data => api.uploadMediaFile({ purpose, data }));
 }
@@ -79,77 +178,44 @@ function scopedCacheKey(key, scope) {
   return `${scope || 'anonymous'}:${key}`;
 }
 
-function resolveCloudFiles(keys, output, scope) {
-  if (!keys.length) return Promise.resolve(output);
-  return wx.cloud.getTempFileURL({ fileList: keys }).then(result => {
-    result.fileList.forEach(item => {
-      output[item.fileID] = item.tempFileURL || '';
-      if (output[item.fileID]) resolvedFileCache.set(scopedCacheKey(item.fileID, scope), output[item.fileID]);
-    });
-    return output;
-  }).catch(() => {
-    keys.forEach(key => { output[key] = ''; });
-    return output;
-  });
+function cacheResolved(key, value) {
+  resolvedFileCache.set(key, value);
+  while (resolvedFileCache.size > MAX_CACHE_ENTRIES) {
+    resolvedFileCache.delete(resolvedFileCache.keys().next().value);
+  }
+}
+
+function resolveStoredFile(key, scope) {
+  const cacheKey = scopedCacheKey(key, scope);
+  const cached = resolvedFileCache.get(cacheKey);
+  if (cached) return Promise.resolve(cached);
+  if (downloadPromiseCache.has(cacheKey)) return downloadPromiseCache.get(cacheKey);
+
+  const promise = downloadStoredFile(key)
+    .then(filePath => {
+      if (filePath) cacheResolved(cacheKey, filePath);
+      return filePath;
+    })
+    .finally(() => downloadPromiseCache.delete(cacheKey));
+  downloadPromiseCache.set(cacheKey, promise);
+  return promise;
 }
 
 function resolveFiles(values) {
   const keys = Array.from(new Set((values || []).filter(Boolean)));
   const scope = auth.getToken() || 'anonymous';
   const output = {};
-  const cloudKeys = [];
   const downloads = [];
   keys.forEach(key => {
-    const cached = resolvedFileCache.get(scopedCacheKey(key, scope));
-    if (cached) {
-      output[key] = cached;
-      return;
-    }
     if (parseMediaKey(key) || parseAvatarKey(key)) {
-      downloads.push(downloadStoredFile(key)
-        .then(filePath => {
-          output[key] = filePath;
-          if (filePath) resolvedFileCache.set(scopedCacheKey(key, scope), filePath);
-        })
+      downloads.push(resolveStoredFile(key, scope)
+        .then(filePath => { output[key] = filePath; })
         .catch(() => { output[key] = ''; }));
-    } else if (String(key).startsWith('cloud://')) {
-      cloudKeys.push(key);
+    } else {
+      output[key] = '';
     }
   });
-  return Promise.all(downloads).then(() => resolveCloudFiles(cloudKeys, output, scope));
-}
-
-function downloadCloudFile(fileID) {
-  return wx.cloud.getTempFileURL({ fileList: [fileID] })
-    .then(result => {
-      const url = result.fileList?.[0]?.tempFileURL;
-      if (!url) throw new Error('旧图片无访问权限');
-      return new Promise((resolve, reject) => {
-        wx.downloadFile({
-          url,
-          timeout: config.requestTimeout,
-          success: response => response.statusCode === 200
-            ? resolve(response.tempFilePath)
-            : reject(new Error(`旧图片下载失败（${response.statusCode}）`)),
-          fail: reject
-        });
-      });
-    });
-}
-
-function migrateCloudFile(fileID, purpose) {
-  if (!String(fileID || '').startsWith('cloud://')) return Promise.resolve(fileID);
-  const cacheKey = `${scopedCacheKey(fileID, auth.getToken() || 'anonymous')}:${purpose}`;
-  if (!migrationCache.has(cacheKey)) {
-    migrationCache.set(cacheKey, downloadCloudFile(fileID)
-      .then(filePath => upload(filePath, purpose))
-      .then(result => result.key)
-      .catch(error => {
-        migrationCache.delete(cacheKey);
-        throw error;
-      }));
-  }
-  return migrationCache.get(cacheKey);
+  return Promise.all(downloads).then(() => output);
 }
 
 function remove(key) {
@@ -158,14 +224,18 @@ function remove(key) {
   return api.deleteMediaFile(parsed.coupleId, parsed.filename).catch(() => {});
 }
 
+function clearCaches() {
+  resolvedFileCache.clear();
+  downloadPromiseCache.clear();
+}
+
 module.exports = {
   upload,
   resolveFiles,
-  migrateCloudFile,
   remove,
   parseMediaKey,
   parseAvatarKey,
   readBase64,
   compress,
-  downloadCloudFile
+  clearCaches
 };

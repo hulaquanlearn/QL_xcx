@@ -1,7 +1,8 @@
 <wxs module="dishUtil">
-  function isSelected(selectedDishes, menuId, dishName) {
+  function isSelected(selectedDishes, menuId, dishId) {
     for (var i = 0; i < selectedDishes.length; i++) {
-      if (selectedDishes[i].menuId == menuId && selectedDishes[i].name === dishName) return true;
+      var selectedId = selectedDishes[i].id || selectedDishes[i].name;
+      if (selectedDishes[i].menuId == menuId && selectedId == dishId) return true;
     }
     return false;
   }
@@ -48,14 +49,14 @@
             <text class="group-count">{{menu.dishes.length}} 道</text>
           </view>
           <view wx:if="{{menu.dishes.length}}" class="dish-grid">
-            <view wx:for="{{menu.dishes}}" wx:key="name" wx:for-item="dish" class="dish-card {{dishUtil.isSelected(selectedDishes, menu._id, dish.name) ? 'selected' : ''}}" bindtap="toggleDish" data-dish="{{dish}}" data-menuid="{{menu._id}}" data-menuname="{{menu.name}}">
+            <view wx:for="{{menu.dishes}}" wx:key="id" wx:for-item="dish" class="dish-card {{dishUtil.isSelected(selectedDishes, menu._id, dish.id || dish.name) ? 'selected' : ''}}" bindtap="toggleDish" data-dish="{{dish}}" data-menuid="{{menu._id}}" data-menuname="{{menu.name}}">
               <image wx:if="{{dish.image}}" class="dish-cover" src="{{dish.image}}" mode="aspectFill"></image>
               <view wx:else class="dish-cover dish-placeholder"><text>今日菜品</text></view>
               <view class="dish-card-body">
                 <text class="dish-title">{{dish.name}}</text>
                 <text class="dish-menu-name">{{menu.name}}</text>
               </view>
-              <view class="select-mark">{{dishUtil.isSelected(selectedDishes, menu._id, dish.name) ? '✓' : '+'}}</view>
+              <view class="select-mark">{{dishUtil.isSelected(selectedDishes, menu._id, dish.id || dish.name) ? '✓' : '+'}}</view>
             </view>
           </view>
           <view wx:else class="group-empty">这个菜单还没有菜品</view>
@@ -78,21 +79,27 @@
             <text class="order-meal">{{item.mealType === 'breakfast' ? '早餐' : item.mealType === 'dinner' ? '晚餐' : item.mealType === 'snack' ? '零食' : '午餐'}}</text>
             <text class="order-time">{{item.formattedTime}}</text>
           </view>
-          <text class="order-status {{item.status === 'accepted' || item.status === 'completed' ? 'accepted' : ''}}">{{item.status === 'completed' ? '已完成' : item.status === 'accepted' ? '已接单' : '等 TA 接单'}}</text>
+          <text class="order-status {{item.status}}">{{item.statusText}}</text>
         </view>
         <text class="order-menu">{{item.menuName}}</text>
         <view class="order-dishes">
-          <view wx:for="{{item.dishes}}" wx:key="name" wx:for-item="dish" class="order-dish">
+          <view wx:for="{{item.dishes}}" wx:key="id" wx:for-item="dish" class="order-dish">
             <image wx:if="{{dish.image}}" class="order-dish-image" src="{{dish.image}}" mode="aspectFill"></image>
             <view wx:else class="order-dish-image order-dish-placeholder"></view>
             <text>{{dish.name}}</text>
           </view>
         </view>
         <view class="order-foot">
-          <text class="order-by">{{item.orderBy || item.author || '我'}} 发起</text>
+          <view>
+            <text class="order-by">{{item.orderBy || item.author || '我'}} 发起</text>
+            <text wx:if="{{item.status !== 'pending'}}" class="order-progress">{{item.acceptedBy || 'TA'}} {{item.status === 'completed' ? '已完成' : item.status === 'ready' ? '已做好' : '已接单'}}</text>
+          </view>
           <view class="order-actions">
             <view wx:if="{{item.status === 'pending' && !item.isMine}}" class="order-action primary" bindtap="acceptOrder" data-id="{{item._id}}">接单</view>
-            <view wx:if="{{item.isMine || !item.authorId}}" class="order-action" bindtap="deleteOrder" data-id="{{item._id}}">删除</view>
+            <view wx:if="{{item.status !== 'pending'}}" class="order-action" bindtap="openOrderDetail" data-id="{{item._id}}">制作说明</view>
+            <view wx:if="{{item.status === 'accepted' && item.isAcceptedByMe}}" class="order-action primary" bindtap="markOrderReady" data-id="{{item._id}}">已做好</view>
+            <view wx:if="{{item.status === 'ready' && item.isMine}}" class="order-action primary" bindtap="confirmOrder" data-id="{{item._id}}">收到啦</view>
+            <view wx:if="{{item.isMine && (item.status === 'pending' || item.status === 'completed')}}" class="order-action" bindtap="deleteOrder" data-id="{{item._id}}">{{item.status === 'pending' ? '撤回' : '删除记录'}}</view>
           </view>
         </view>
       </view>
@@ -148,7 +155,10 @@
             <view wx:if="{{item.imageUploading}}" class="image-upload-state">上传中</view>
           </view>
           <text class="editing-name">{{item.name}}</text>
-          <view class="remove-dish" bindtap="removeDish" data-index="{{index}}">删除</view>
+          <view class="editing-dish-actions">
+            <view class="recipe-dish-action {{item.recipeImageKey || item.ingredients || item.steps || item.tips ? 'ready' : ''}}" bindtap="openRecipeEditor" data-index="{{index}}">{{item.recipeImageKey || item.ingredients || item.steps || item.tips ? '已加做法' : '加做法'}}</view>
+            <view class="remove-dish" bindtap="removeDish" data-index="{{index}}">删除</view>
+          </view>
         </view>
       </view>
       <view wx:else class="editor-empty">添加菜品后就可以保存菜单</view>
@@ -157,6 +167,36 @@
       <view wx:if="{{editingMenu}}" class="delete-menu" bindtap="deleteMenu">删除当前菜单</view>
     </view>
   </block>
+</view>
+
+<view wx:if="{{showRecipeModal}}" class="modal-overlay recipe-overlay" bindtap="closeRecipeEditor">
+  <view class="create-modal recipe-modal" catchtap="preventBubble">
+    <view class="modal-head">
+      <view><text class="modal-title">{{recipeDraft.name}}</text><text class="recipe-modal-subtitle">制作说明</text></view>
+      <view class="modal-close" bindtap="closeRecipeEditor">{{recipeUploading ? '上传中' : '关闭'}}</view>
+    </view>
+
+    <view class="recipe-image-editor" bindtap="chooseRecipeImage">
+      <image wx:if="{{recipeDraft.recipeImage}}" src="{{recipeDraft.recipeImage}}" mode="aspectFill"></image>
+      <view wx:else class="recipe-image-empty"><text>添加制作说明图</text><text class="recipe-image-helper">长图也可以，将自动压缩并安全审核</text></view>
+      <view wx:if="{{recipeUploading}}" class="image-upload-state">上传中</view>
+    </view>
+    <view wx:if="{{recipeDraft.recipeImage}}" class="clear-recipe-image" bindtap="clearRecipeImage">移除说明图</view>
+
+    <text class="recipe-field-label">食材与用量</text>
+    <textarea class="recipe-textarea ingredients" value="{{recipeDraft.ingredients}}" bindinput="onRecipeInput" data-field="ingredients" maxlength="1200" cursor-spacing="24" placeholder="例如：米饭 1 碗&#10;鸡蛋 2 个&#10;番茄 2 个" placeholder-class="field-placeholder"></textarea>
+
+    <text class="recipe-field-label">制作步骤</text>
+    <textarea class="recipe-textarea steps" value="{{recipeDraft.steps}}" bindinput="onRecipeInput" data-field="steps" maxlength="4000" cursor-spacing="24" placeholder="1. 处理食材&#10;2. 下锅翻炒&#10;3. 调味出锅" placeholder-class="field-placeholder"></textarea>
+
+    <text class="recipe-field-label">小贴士</text>
+    <textarea class="recipe-textarea tips" value="{{recipeDraft.tips}}" bindinput="onRecipeInput" data-field="tips" maxlength="1000" cursor-spacing="24" placeholder="可选：口味、火候或替换食材" placeholder-class="field-placeholder"></textarea>
+
+    <view class="modal-actions recipe-actions">
+      <view class="modal-action secondary" bindtap="closeRecipeEditor">取消</view>
+      <view class="modal-action primary {{recipeUploading ? 'disabled' : ''}}" bindtap="saveRecipeEditor">{{recipeUploading ? '说明图上传中' : '保存做法'}}</view>
+    </view>
+  </view>
 </view>
 
 <view wx:if="{{selectedDishes.length > 0 && activeTab === 'order'}}" class="selection-tray">
@@ -175,6 +215,14 @@
     <view class="batch-meal-row">
       <view wx:for="{{mealTypes}}" wx:key="value" class="batch-meal-chip {{mealType === item.value ? 'active' : ''}}" bindtap="selectMealType" data-type="{{item.value}}">{{item.label}}</view>
     </view>
+    <view class="family-preset-card">
+      <view class="family-preset-copy">
+        <text class="family-preset-title">{{familyMenuPreset.name}}</text>
+        <text class="family-preset-desc">8 道家常菜 · 导入后可为菜品添加服务器图片</text>
+      </view>
+      <view class="family-preset-action {{importingMenus ? 'disabled' : ''}}" bindtap="importFamilyMenuPreset">{{importingMenus ? '正在导入' : '一键导入菜单'}}</view>
+    </view>
+    <view class="batch-divider"><text>或粘贴自己的菜单</text></view>
     <textarea class="batch-textarea" value="{{batchMenuText}}" bindinput="onBatchMenuInput" maxlength="4000" cursor-spacing="24" placeholder="家常菜：番茄炒蛋、红烧肉&#10;早餐：豆浆、油条" placeholder-class="field-placeholder"></textarea>
     <view class="modal-actions">
       <view class="modal-action secondary" bindtap="closeBatchImportModal">取消</view>

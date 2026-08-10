@@ -14,10 +14,10 @@
         </view>
         <view class="field">
           <text class="field-label">密码</text>
-          <input class="login-input" password placeholder="请输入密码" placeholder-class="input-placeholder" value="{{password}}" bindinput="onPasswordInput" maxlength="32" confirm-type="done" bindconfirm="login"/>
+          <input class="login-input" password placeholder="请输入密码" placeholder-class="input-placeholder" value="{{password}}" bindinput="onPasswordInput" maxlength="128" confirm-type="done" bindconfirm="login"/>
         </view>
-        <button class="login-btn" bindtap="login" hover-class="login-btn-active" hover-stay-time="80">
-          <text class="login-btn-text">进入空间</text>
+        <button class="login-btn" bindtap="login" disabled="{{loggingIn}}" hover-class="login-btn-active" hover-stay-time="80">
+          <text class="login-btn-text">{{loggingIn ? '正在登录' : '进入空间'}}</text>
         </button>
         <text class="login-hint">账号由管理员统一开通</text>
       </view>

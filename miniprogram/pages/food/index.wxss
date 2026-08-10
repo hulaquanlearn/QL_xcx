@@ -43,6 +43,8 @@ page { background: #F6F4EF; }
 .order-time { display: block; margin-top: 4rpx; color: #A0A19A; font-size: 20rpx; }
 .order-status { padding: 10rpx 16rpx; border-radius: 999rpx; background: #F0E7E1; color: #A05F4B; font-size: 19rpx; }
 .order-status.accepted { background: #E8EEE9; color: #5D7464; }
+.order-status.ready { background: #F4EBDD; color: #95663F; }
+.order-status.completed { background: #E7ECE7; color: #52635A; }
 .order-menu { display: block; margin-top: 24rpx; color: #858981; font-size: 21rpx; }
 .order-dishes { display: flex; margin-top: 15rpx; flex-wrap: wrap; gap: 12rpx; }
 .order-dish { display: flex; min-height: 58rpx; padding: 7rpx 18rpx 7rpx 8rpx; align-items: center; gap: 12rpx; border-radius: 999rpx; background: #F3F0EA; color: #555A54; font-size: 22rpx; }
@@ -50,7 +52,8 @@ page { background: #F6F4EF; }
 .order-dish-placeholder { background: #C9D0C9; }
 .order-foot { margin-top: 26rpx; padding-top: 20rpx; border-top: 1rpx solid #EEEAE2; }
 .order-by { color: #94978F; font-size: 21rpx; }
-.order-actions { display: flex; gap: 12rpx; }
+.order-progress { display: block; margin-top: 5rpx; color: #6E796F; font-size: 19rpx; }
+.order-actions { display: flex; max-width: 65%; flex-wrap: wrap; justify-content: flex-end; gap: 12rpx; }
 .order-action { display: flex; min-height: 58rpx; padding: 0 22rpx; align-items: center; justify-content: center; border-radius: 16rpx; background: #F0EDE7; color: #6E736C; font-size: 21rpx; font-weight: 600; }
 .order-action.primary { background: #2D332F; color: #FFFFFF; }
 .manager-head { flex-direction: column; align-items: flex-start; }
@@ -75,6 +78,9 @@ page { background: #F6F4EF; }
 .editing-cover image { width: 100%; height: 100%; }
 .image-upload-state { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(38,43,39,.68); color: #FFFFFF; font-size: 16rpx; }
 .editing-name { flex: 1; margin-left: 18rpx; color: #4A4F49; font-size: 25rpx; }
+.editing-dish-actions { display: flex; align-items: center; gap: 4rpx; }
+.recipe-dish-action { padding: 14rpx; color: #66756B; font-size: 21rpx; }
+.recipe-dish-action.ready { color: #A06048; }
 .remove-dish { padding: 14rpx; color: #AD6056; font-size: 21rpx; }
 .editor-empty { margin-top: 26rpx; padding: 34rpx; border: 1rpx dashed #D9D4CA; border-radius: 20rpx; color: #9B9D96; font-size: 21rpx; text-align: center; }
 .save-menu { display: flex; width: 100%; height: 92rpx; margin-top: 30rpx; align-items: center; justify-content: center; border-radius: 21rpx; background: #2D332F; color: #FFFFFF; font-size: 27rpx; font-weight: 650; line-height: 1.2; }
@@ -89,6 +95,7 @@ page { background: #F6F4EF; }
 .tray-action::after { border: 0; }
 .modal-overlay { position: fixed; inset: 0; z-index: 100; display: flex; padding: 32rpx; align-items: center; justify-content: center; background: rgba(32,36,32,.5); }
 .create-modal { width: 100%; max-width: 620rpx; padding: 36rpx 32rpx 30rpx; border-radius: 34rpx; background: #FFFFFF; box-shadow: 0 30rpx 80rpx rgba(20,23,20,.24); }
+.batch-modal { max-height: 86vh; overflow-y: auto; box-sizing: border-box; }
 .modal-title { color: #2F342F; font-size: 36rpx; font-weight: 700; }
 .modal-close { padding: 10rpx; color: #959891; font-size: 22rpx; }
 .modal-desc { display: block; margin-top: 8rpx; color: #93968F; font-size: 22rpx; }
@@ -97,9 +104,31 @@ page { background: #F6F4EF; }
 .batch-meal-row { display: flex; margin-top: 22rpx; gap: 10rpx; }
 .batch-meal-chip { display: flex; flex: 1; height: 58rpx; align-items: center; justify-content: center; border: 1rpx solid #DED9D0; border-radius: 16rpx; color: #7B8079; font-size: 20rpx; }
 .batch-meal-chip.active { border-color: #4F5D54; background: #E9EEE9; color: #435047; font-weight: 650; }
+.family-preset-card { margin-top: 20rpx; padding: 22rpx; border: 1rpx solid #DADFD9; border-radius: 22rpx; background: #F3F6F2; }
+.family-preset-copy { min-width: 0; }
+.family-preset-title { display: block; color: #3C493F; font-size: 26rpx; font-weight: 680; }
+.family-preset-desc { display: block; margin-top: 5rpx; color: #7F8981; font-size: 19rpx; line-height: 1.5; }
+.family-preset-action { display: flex; height: 70rpx; margin-top: 17rpx; align-items: center; justify-content: center; border-radius: 17rpx; background: #53645A; color: #FFFFFF; font-size: 22rpx; font-weight: 650; }
+.family-preset-action.disabled { background: #929A94; }
+.batch-divider { display: flex; margin-top: 24rpx; align-items: center; gap: 14rpx; color: #A0A29C; font-size: 19rpx; }
+.batch-divider::before, .batch-divider::after { height: 1rpx; flex: 1; background: #E4E0D8; content: ''; }
 .batch-textarea { display: block; width: 100%; height: 300rpx; margin-top: 20rpx; padding: 22rpx 24rpx; border: 1rpx solid #DCD7CE; border-radius: 20rpx; background: #FAF9F6; color: #333833; font-size: 24rpx; line-height: 1.65; box-sizing: border-box; }
 .field-placeholder { color: #AAA9A3; }
 .modal-actions { display: grid; margin-top: 30rpx; grid-template-columns: 1fr 1.3fr; gap: 14rpx; }
 .modal-action { display: flex; height: 84rpx; align-items: center; justify-content: center; border-radius: 20rpx; font-size: 25rpx; font-weight: 650; }
 .modal-action.secondary { background: #F0EDE7; color: #676C66; }
 .modal-action.primary { background: #2D332F; color: #FFFFFF; }
+.modal-action.disabled { background: #8F958F; }
+.recipe-overlay { align-items: flex-end; padding: 24rpx 24rpx calc(24rpx + env(safe-area-inset-bottom)); }
+.recipe-modal { max-height: 88vh; overflow-y: auto; box-sizing: border-box; }
+.recipe-modal-subtitle { display: block; margin-top: 4rpx; color: #999C95; font-size: 20rpx; }
+.recipe-image-editor { position: relative; display: flex; width: 100%; height: 270rpx; margin-top: 26rpx; align-items: center; justify-content: center; overflow: hidden; border: 1rpx dashed #D6D1C7; border-radius: 24rpx; background: #F4F1EB; }
+.recipe-image-editor image { width: 100%; height: 100%; }
+.recipe-image-empty { display: flex; flex-direction: column; align-items: center; color: #606860; font-size: 25rpx; font-weight: 650; }
+.recipe-image-helper { margin-top: 8rpx; color: #999C95; font-size: 19rpx; font-weight: 400; }
+.clear-recipe-image { margin-top: 12rpx; color: #A45D52; font-size: 21rpx; text-align: right; }
+.recipe-field-label { display: block; margin-top: 26rpx; color: #424842; font-size: 24rpx; font-weight: 650; }
+.recipe-textarea { display: block; width: 100%; height: 180rpx; margin-top: 12rpx; padding: 20rpx 22rpx; border: 1rpx solid #DED9D0; border-radius: 20rpx; background: #FAF9F6; color: #3E433E; font-size: 23rpx; line-height: 1.7; box-sizing: border-box; }
+.recipe-textarea.steps { height: 240rpx; }
+.recipe-textarea.tips { height: 150rpx; }
+.recipe-actions { position: sticky; bottom: -30rpx; z-index: 2; margin: 28rpx -32rpx -30rpx; padding: 20rpx 32rpx 30rpx; background: #FFFFFF; }

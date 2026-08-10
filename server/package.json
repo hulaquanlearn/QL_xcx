@@ -1,9 +1,9 @@
 {
   "name": "couple-space-api",
-  "version": "2.3.0",
+  "version": "2.8.0",
   "private": true,
   "main": "src/app.js",
-  "scripts": { "start": "node src/app.js", "dev": "node --watch src/app.js", "test": "node --test", "create-user": "node scripts/create-user.js" },
+  "scripts": { "start": "node src/app.js", "dev": "node --watch src/app.js", "test": "node --test", "create-user": "node scripts/create-user.js", "check-content-security": "node scripts/check-content-security.js" },
   "engines": { "node": ">=20" },
   "dependencies": {
     "cors": "^2.8.5", "dotenv": "^16.4.7", "express": "^4.21.2",

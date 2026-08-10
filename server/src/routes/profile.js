@@ -2,7 +2,7 @@ const express = require('express');
 const { pool } = require('../db');
 const { requireAuth, publicUser } = require('../auth');
 const { ApiError, asyncHandler } = require('../utils');
-const { removeCoupleMedia } = require('../media');
+const { checkText } = require('../content-safety');
 
 const router = express.Router();
 
@@ -12,6 +12,11 @@ const updateProfile = asyncHandler(async (req, res) => {
 
   if (!name) throw new ApiError(400, '昵称不能为空');
   if (!['male', 'female', 'other'].includes(gender)) throw new ApiError(400, '性别无效');
+  await checkText(name, {
+    openid: req.userRow.wechat_openid,
+    scene: 1,
+    nickname: name
+  });
 
   await pool.query(
     'UPDATE users SET name=?,gender=? WHERE id=?',
@@ -67,27 +72,6 @@ router.post('/partner/bind', requireAuth, asyncHandler(async (req, res) => {
   } finally {
     connection.release();
   }
-}));
-
-router.post('/partner/unbind', requireAuth, asyncHandler(async (req, res) => {
-  if (!req.userRow.couple_id) throw new ApiError(409, '当前未绑定情侣');
-  const coupleId = req.userRow.couple_id;
-  const connection = await pool.getConnection();
-  try {
-    await connection.beginTransaction();
-    const [locked] = await connection.query('SELECT id FROM couples WHERE id=? FOR UPDATE', [coupleId]);
-    if (!locked[0]) throw new ApiError(404, '情侣空间不存在');
-    await connection.query('UPDATE users SET couple_id=NULL WHERE couple_id=?', [coupleId]);
-    await connection.query('DELETE FROM couples WHERE id=?', [coupleId]);
-    await connection.commit();
-  } catch (error) {
-    await connection.rollback();
-    throw error;
-  } finally {
-    connection.release();
-  }
-  await removeCoupleMedia(coupleId).catch(() => {});
-  res.json({ success: true, data: null });
 }));
 
 module.exports = router;

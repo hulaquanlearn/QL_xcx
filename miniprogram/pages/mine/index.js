@@ -2,6 +2,7 @@ const app = getApp();
 const api = require('../../services/api');
 const auth = require('../../services/auth');
 const avatarService = require('../../services/avatar');
+const mediaService = require('../../services/media');
 
 Page({
   data: {
@@ -16,7 +17,6 @@ Page({
     albumCount: 0,
     countdownCount: 0,
     pendingOrderCount: 0,
-    cacheSize: '0 KB',
     showInviteModal: false,
     showBindModal: false,
     inputInviteCode: '',
@@ -61,7 +61,7 @@ Page({
       app.globalData.userInfo = freshUser;
       app.globalData.coupleId = freshUser.coupleId;
       app.globalData.partnerInfo = freshPartner || null;
-      app.saveLoginStatus({ openid: freshUser.id, coupleId: freshUser.coupleId, userInfo: freshUser, partnerInfo: freshPartner || null });
+      app.saveLoginStatus({ userId: freshUser.id, coupleId: freshUser.coupleId, userInfo: freshUser, partnerInfo: freshPartner || null });
       this.setData({
         userInfo: freshUser,
         partnerInfo: freshPartner || null,
@@ -100,13 +100,6 @@ Page({
           userAvatar: urls[userAvatarRow.key] || '',
           partnerAvatar: urls[partnerAvatarRow.key] || ''
         });
-        if (String(userAvatarRow.key || '').startsWith('cloud://') && !this.avatarMigrationRunning) {
-          this.avatarMigrationRunning = true;
-          avatarService.migrateLegacy(userAvatarRow.key)
-            .then(() => this.loadAvatars())
-            .catch(() => {})
-            .finally(() => { this.avatarMigrationRunning = false; });
-        }
       });
     }).catch(() => this.setData({ userAvatar: '', partnerAvatar: '' }));
   },
@@ -137,7 +130,7 @@ Page({
       app.globalData.coupleId = coupleId;
       app.globalData.userInfo = user;
       app.globalData.partnerInfo = partner;
-      app.saveLoginStatus({ openid: app.globalData.openid, coupleId, userInfo: user, partnerInfo: partner });
+      app.saveLoginStatus({ userId: app.globalData.userId, coupleId, userInfo: user, partnerInfo: partner });
       this.setData({ showBindModal: false, inputInviteCode: '', userInfo: user, partnerInfo: partner, hasPartner: true, coupleInfo: partner });
       this.refreshPage();
       wx.showToast({ title: '绑定成功', icon: 'success' });
@@ -145,8 +138,7 @@ Page({
   },
 
   clearCache() {
-    ['menus', 'orders'].forEach(key => wx.removeStorageSync(key));
-    this.setData({ cacheSize: '0 KB' });
+    mediaService.clearCaches();
     wx.showToast({ title: '缓存已清理', icon: 'success' });
   },
 
@@ -164,7 +156,7 @@ Page({
     api.profile({ name, gender: this.data.editGender }).then(({ user }) => {
       const merged = { ...app.globalData.userInfo, ...user };
       app.globalData.userInfo = merged;
-      app.saveLoginStatus({ openid: app.globalData.openid, coupleId: app.globalData.coupleId, userInfo: merged, partnerInfo: app.globalData.partnerInfo });
+      app.saveLoginStatus({ userId: app.globalData.userId, coupleId: app.globalData.coupleId, userInfo: merged, partnerInfo: app.globalData.partnerInfo });
       this.setData({ userInfo: merged, userName: merged.name, showEditModal: false });
       this.loadAvatars();
       wx.showToast({ title: '已保存', icon: 'success' });
@@ -178,6 +170,7 @@ Page({
       success: result => {
         if (!result.confirm) return;
         api.logout().catch(() => {}).finally(() => {
+          mediaService.clearCaches();
           auth.clearSession();
           app.clearLoginStatus();
           app.globalData.manualLogout = true;

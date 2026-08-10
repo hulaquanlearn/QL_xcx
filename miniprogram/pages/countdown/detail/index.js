@@ -1,5 +1,6 @@
 // pages/countdown/detail/index.js
 const app = getApp()
+const api = require('../../../services/api')
 const dateUtils = require('../../../utils/date')
 
 Page({
@@ -26,7 +27,7 @@ Page({
   
   // 检查登录状态
   checkLogin: function() {
-    if (!app.globalData.openid || !app.globalData.coupleId) {
+    if (!app.globalData.userId || !app.globalData.coupleId) {
       wx.redirectTo({ url: '/pages/index/index' });
       return false;
     }
@@ -36,10 +37,9 @@ Page({
   // 加载纪念日详情
   loadCountdown: function(id) {
     this.setData({ loading: true });
-    const db = wx.cloud.database();
-    db.collection('countdown').doc(id).get().then(res => {
-      if (res.data) {
-        const countdown = res.data;
+    api.get('countdown', id).then(item => {
+      if (item) {
+        const countdown = item;
         
         // 格式化日期显示
         countdown.dateText = this.formatDate(countdown.date);
@@ -92,7 +92,8 @@ Page({
   // 格式化日期时间
   formatDateTime: function(dateObj) {
     if (!dateObj) return '';
-    const date = new Date(dateObj);
+    const date = dateUtils.parseDateTime(dateObj);
+    if (!date) return '';
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
@@ -117,8 +118,7 @@ Page({
       content: '确定要删除这个纪念日吗？',
       success: res => {
         if (res.confirm) {
-          const db = wx.cloud.database();
-          db.collection('countdown').doc(id).remove().then(() => {
+          api.remove('countdown', id).then(() => {
             wx.showToast({ title: '删除成功', icon: 'success' });
             wx.navigateBack();
           }).catch(err => {

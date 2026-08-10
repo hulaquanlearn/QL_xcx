@@ -27,12 +27,11 @@ Page({
   },
 
   onPullDownRefresh() {
-    this.getTasksList();
-    wx.stopPullDownRefresh();
+    Promise.resolve(this.getTasksList()).finally(() => wx.stopPullDownRefresh());
   },
 
   checkLogin: function() {
-    if (!app.globalData.openid || !app.globalData.coupleId) {
+    if (!app.globalData.userId || !app.globalData.coupleId) {
       wx.redirectTo({ url: '/pages/index/index' });
       return false;
     }
@@ -53,13 +52,9 @@ Page({
     }
 
     this.setData({ loading: true });
-    const db = wx.cloud.database();
-
-    return db.collection('tasks').where({
-      coupleId: coupleId
-    }).orderBy('createTime', 'desc').get().then(res => {
+    return api.list('tasks', { limit: 200 }).then(rows => {
       const currentById = new Map(this.data.tasksList.map(item => [String(item.id), item]));
-      const tasksList = res.data.map(item => ({
+      const tasksList = rows.map(item => ({
         ...item,
         id: item._id,
         photos: currentById.get(String(item._id))?.photos || [],
@@ -86,9 +81,8 @@ Page({
   },
 
   loadTaskPhotos: function(tasksList) {
-    const db = wx.cloud.database();
-    return db.collection('album').where({ coupleId: app.globalData.coupleId }).limit(200).get().then(res => {
-      const linkedPhotos = (res.data || []).filter(photo => photo.taskId);
+    return api.list('album', { linkedTasks: 1, limit: 200 }).then(rows => {
+      const linkedPhotos = rows.filter(photo => photo.taskId);
       const keys = linkedPhotos.map(photo => photo.fileID || photo.imgUrl).filter(Boolean);
       return mediaService.resolveFiles(keys).then(urls => {
         const photosByTask = new Map();
@@ -193,16 +187,10 @@ Page({
       return;
     }
 
-    const db = wx.cloud.database();
-
-    db.collection('tasks').add({
-      data: {
-        title: title,
-        description: '',
-        completed: false,
-        coupleId: coupleId,
-        createTime: db.serverDate()
-      }
+    api.create('tasks', {
+      title: title,
+      description: '',
+      completed: false
     }).then(() => {
       wx.showToast({ title: '添加成功', icon: 'success' });
       this.getTasksList();
@@ -226,12 +214,8 @@ Page({
   },
 
   updateTask: function(taskId, title) {
-    const db = wx.cloud.database();
-
-    db.collection('tasks').doc(taskId).update({
-      data: {
-        title: title
-      }
+    api.update('tasks', taskId, {
+      title: title
     }).then(() => {
       wx.showToast({ title: '更新成功', icon: 'success' });
       this.getTasksList();
@@ -256,9 +240,7 @@ Page({
   },
 
   removeTask: function(taskId) {
-    const db = wx.cloud.database();
-
-    db.collection('tasks').doc(taskId).remove().then(() => {
+    api.remove('tasks', taskId).then(() => {
       wx.showToast({ title: '删除成功', icon: 'success' });
       this.getTasksList();
     }).catch(err => {
@@ -272,13 +254,10 @@ Page({
     const task = this.data.tasksList.find(item => item.id === taskId);
     if (!task) return;
 
-    const db = wx.cloud.database();
     const newStatus = !task.completed;
 
-    db.collection('tasks').doc(taskId).update({
-      data: {
-        completed: newStatus
-      }
+    api.update('tasks', taskId, {
+      completed: newStatus
     }).then(() => {
       wx.showToast({ 
         title: newStatus ? '任务完成！' : '已取消完成', 

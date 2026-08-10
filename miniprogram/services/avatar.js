@@ -2,7 +2,7 @@ const api = require('./api');
 const media = require('./media');
 
 function upload(filePath) {
-  return media.compress(filePath)
+  return media.compress(filePath, 'avatar')
     .then(media.readBase64)
     .then(data => api.uploadAvatarFile({ data }))
     .catch(error => {
@@ -11,13 +11,7 @@ function upload(filePath) {
     });
 }
 
-function migrateLegacy(key) {
-  if (!String(key || '').startsWith('cloud://')) return Promise.resolve(key);
-  return media.downloadCloudFile(key).then(upload).then(result => result.key);
-}
-
 module.exports = {
   upload,
-  migrateLegacy,
   resolveFiles: media.resolveFiles
 };
