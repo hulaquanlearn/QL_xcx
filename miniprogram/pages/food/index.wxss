@@ -6,6 +6,8 @@ page { background: #F6F4EF; }
 .page-title { display: block; color: #282C28; font-size: 46rpx; font-weight: 720; line-height: 1.2; }
 .page-subtitle { display: block; margin-top: 10rpx; color: #8A8E87; font-size: 23rpx; line-height: 1.55; }
 .manage-entry, .back-action { display: flex; min-height: 62rpx; padding: 0 22rpx; align-items: center; justify-content: center; border: 1rpx solid #DFDAD0; border-radius: 999rpx; background: rgba(255,255,255,.82); color: #5F655F; font-size: 22rpx; font-weight: 600; }
+.header-actions { display: flex; flex-shrink: 0; gap: 10rpx; }
+.planner-entry { display: flex; min-height: 62rpx; padding: 0 20rpx; align-items: center; border-radius: 999rpx; background: #E7EEE8; color: #526158; font-size: 22rpx; font-weight: 650; }
 .view-switch { display: flex; height: 82rpx; margin-top: 34rpx; padding: 7rpx; align-items: center; border: 1rpx solid #E0DBD2; border-radius: 24rpx; background: #ECE8DF; }
 .view-switch-item { display: flex; flex: 1; height: 66rpx; align-items: center; justify-content: center; gap: 10rpx; border-radius: 18rpx; color: #83877F; font-size: 25rpx; font-weight: 600; }
 .view-switch-item.active { background: #FFFFFF; color: #303530; box-shadow: 0 6rpx 18rpx rgba(54,49,42,.08); }

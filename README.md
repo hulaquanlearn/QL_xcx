@@ -11,9 +11,19 @@
 - `miniprogram/`：小程序页面、统一 API 服务和会话管理。
 - `server/`：Node.js、Express、MySQL API。
 - `server/sql/schema.sql`：全新安装所需的完整数据库结构。
-- `server/sql/migrate-v2.5.0.sql` 至 `migrate-v2.8.0.sql`：已有服务器升级所需的幂等迁移。
+- `server/sql/migrate-v2.5.0.sql` 至 `migrate-v2.9.0.sql`：已有服务器升级所需的幂等迁移。
 
-## v2.8.0 更新
+## v2.9.0 更新
+
+- 新增“周菜单”：按周安排午餐和晚餐，并可从菜品食材说明生成采购清单。
+- 采购清单支持两人共同勾选、手工追加和删除；情侣数据继续按 `couple_id` 隔离。
+- 清单页新增“共同时间线”，自动汇集已完成清单、关联照片、相册照片和已完成点单。
+- 菜品从菜单 JSON 逐步规范化到 `dishes`、`menu_items`，旧菜单 JSON 保留为兼容缓存，历史订单继续保留不可变快照。
+- 服务端拆分订单、相册、周计划和时间线路由；情侣权限入口集中到 `couple-access.js`。
+- 菜单页的图片展示逻辑移至独立模块，周计划使用独立页面，降低单页维护复杂度。
+- 新增本地图片引用测试，避免删除仍被 WXML 引用的图标。
+
+## v2.8.0 基础能力
 
 - Nginx API 路由允许最大 `6m` 请求体，匹配 Base64 图片上传体积。
 - 服务端拒绝空菜单、空点单、缺少必填字段、无效日历日期和超长说明，不再把输入错误变成 MySQL 500。
@@ -47,7 +57,7 @@
 - 微信 OpenID 只绑定当前登录会话，不再与本地账号唯一绑定；一个微信号可以切换多个手工账号。
 - 账号密码仍负责鉴权，情侣数据仍按账号的 `couple_id` 隔离。
 - 小程序切换账号和退出登录时会清理内存图片缓存。
-- 新增 `media_checks` 表；v2.8.0 移除旧 `avatars` 表后，当前完整结构共9张表。
+- 新增 `media_checks` 表；v2.9.0 继续增加规范化菜品、周计划和采购清单表。
 - 图片按头像、菜品和相册分别采用清晰度策略，不再把运行时照片错误压缩到190KB。
 - 相册使用游标分页，每页30张并支持触底继续加载。
 - 图片下载增加并发请求合并和有界缓存，菜单与订单不再重复下载同一张图片。
@@ -62,7 +72,7 @@
 
 ## 已有服务器升级
 
-先备份数据库、源码和图片目录，再依次执行已有迁移与 v2.8.0 迁移：
+先备份数据库、源码和图片目录，再依次执行已有迁移与 v2.9.0 迁移：
 
 ```bash
 cd /opt/couple-space/server
@@ -74,6 +84,9 @@ mysql -h 127.0.0.1 -u couple_space -p couple_space < sql/migrate-v2.5.1.sql
 mysql -h 127.0.0.1 -u couple_space -p couple_space < sql/migrate-v2.6.0.sql
 mysql -h 127.0.0.1 -u couple_space -p couple_space < sql/migrate-v2.7.0.sql
 mysql -h 127.0.0.1 -u couple_space -p couple_space < sql/migrate-v2.8.0.sql
+mysql -h 127.0.0.1 -u couple_space -p couple_space < sql/migrate-v2.9.0.sql
+npm ci --omit=dev
+npm run migrate-menu-data
 mkdir -p /opt/couple-space/data/avatars
 mkdir -p /opt/couple-space/data/media
 mkdir -p /opt/couple-space/data/pending-media
@@ -107,7 +120,7 @@ curl -sS http://127.0.0.1:3001/api/couple-space/health
 curl -sS https://czsdsg.cn/api/couple-space/health
 ```
 
-健康接口的 `data.version` 应为 `2.8.0`，`data.contentSafety` 应为 `configured`。测试总数以当前源码实际输出为准，必须全部通过，不使用写死的历史数量代替结果。
+健康接口的 `data.version` 应为 `2.9.0`，`data.contentSafety` 应为 `configured`。测试总数以当前源码实际输出为准，必须全部通过，不使用写死的历史数量代替结果。
 
 部署完成后，先用新版小程序登录一次，再执行：
 

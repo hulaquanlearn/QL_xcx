@@ -4,8 +4,10 @@ const api = require('../../services/api');
 const mediaService = require('../../services/media');
 const familyMenuPreset = require('../../data/family-menu-preset');
 const dateUtils = require('../../utils/date');
+const createDisplayMethods = require('./modules/display');
 
 Page({
+  ...createDisplayMethods({ app, dateUtils, mediaService }),
   data: {
     activeTab: 'order',
     activeMenuId: 'all',
@@ -117,96 +119,6 @@ Page({
     });
   },
 
-  resolveRecordImages(records, includeRecipe = false) {
-    const keys = [];
-    records.forEach(record => {
-      (record.dishes || []).forEach(dish => {
-        const key = dish.imageKey || dish.image;
-        if (key) keys.push(key);
-        if (includeRecipe) {
-          const recipeKey = dish.recipeImageKey || dish.recipeImage;
-          if (recipeKey) keys.push(recipeKey);
-        }
-      });
-    });
-    return mediaService.resolveFiles(keys).then(urls => records.map(record => ({
-      ...record,
-      dishes: (record.dishes || []).map(dish => {
-        const imageKey = dish.imageKey || dish.image || '';
-        const recipeImageKey = dish.recipeImageKey || dish.recipeImage || '';
-        return {
-          ...dish,
-          imageKey,
-          image: urls[imageKey] || '',
-          recipeImageKey,
-          recipeImage: includeRecipe ? (urls[recipeImageKey] || '') : ''
-        };
-      })
-    })));
-  },
-
-  prepareRecordsForDisplay(records, currentRecords) {
-    const currentById = new Map((currentRecords || []).map(record => [String(record._id), record]));
-    return records.map(record => {
-      const current = currentById.get(String(record._id));
-      return {
-        ...record,
-        dishes: (record.dishes || []).map(dish => {
-          const imageKey = dish.imageKey || dish.image || '';
-          const recipeImageKey = dish.recipeImageKey || dish.recipeImage || '';
-          const currentDish = (current?.dishes || []).find(item =>
-            String(item.id || item.name) === String(dish.id || dish.name)
-          );
-          const currentKey = currentDish?.imageKey || '';
-          return {
-            ...dish,
-            imageKey,
-            image: currentKey === imageKey ? (currentDish?.image || '') : '',
-            recipeImageKey,
-            recipeImage: (currentDish?.recipeImageKey || '') === recipeImageKey
-              ? (currentDish?.recipeImage || '')
-              : ''
-          };
-        })
-      };
-    });
-  },
-
-  formatOrdersTime(orders) {
-    const currentUserId = String(app.globalData.userInfo?.id || app.globalData.userId || '');
-    return orders.map(order => {
-      let date = null;
-      if (order.createTime && typeof order.createTime === 'object' && order.createTime.toDate) {
-        date = order.createTime.toDate();
-      } else if (order.createTime) {
-        date = dateUtils.parseDateTime(order.createTime);
-      }
-      return {
-        ...order,
-        menuName: Array.isArray(order.menuNames) ? order.menuNames.join('、') : (order.menuName || ''),
-        formattedTime: this.formatDate(date),
-        isMine: String(order.authorId || '') === currentUserId,
-        isAcceptedByMe: String(order.acceptedByUserId || '') === currentUserId,
-        statusText: order.status === 'completed'
-          ? '已完成'
-          : order.status === 'ready'
-            ? '待确认'
-            : order.status === 'accepted'
-              ? '制作中'
-              : '待接单'
-      };
-    });
-  },
-
-  formatDate(date) {
-    if (!(date instanceof Date) || Number.isNaN(date.getTime())) return '刚刚';
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    const hours = String(date.getHours()).padStart(2, '0');
-    const minutes = String(date.getMinutes()).padStart(2, '0');
-    return `${month}-${day} ${hours}:${minutes}`;
-  },
-
   switchTab(e) {
     const activeTab = e.currentTarget.dataset.tab;
     this.setData({ activeTab });
@@ -216,6 +128,10 @@ Page({
 
   openMenuManager() {
     this.setData({ activeTab: 'manage' });
+  },
+
+  openPlanner() {
+    wx.navigateTo({ url: '/pages/food/planner/index' });
   },
 
   leaveMenuManager() {

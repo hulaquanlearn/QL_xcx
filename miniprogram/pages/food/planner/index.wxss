@@ -1,0 +1,26 @@
+page { background: #F6F4EF; }
+.planner-page { min-height: 100vh; padding: 28rpx 28rpx calc(70rpx + env(safe-area-inset-bottom)); box-sizing: border-box; color: #303530; }
+.planner-intro { padding: 4rpx 4rpx 26rpx; }
+.eyebrow { display: block; color: #9A7669; font-size: 18rpx; font-weight: 650; letter-spacing: 4rpx; }
+.page-title { display: block; margin-top: 10rpx; font-size: 42rpx; font-weight: 720; }
+.page-desc { display: block; margin-top: 8rpx; color: #878B84; font-size: 23rpx; }
+.week-nav { display: flex; min-height: 104rpx; padding: 0 10rpx; align-items: center; border: 1rpx solid #E0DCD3; border-radius: 26rpx; background: #fff; }
+.week-arrow { display: flex; width: 76rpx; height: 76rpx; align-items: center; justify-content: center; color: #59625B; font-size: 44rpx; }
+.week-copy { flex: 1; text-align: center; }
+.week-label { display: block; font-size: 29rpx; font-weight: 680; }
+.week-hint { display: block; margin-top: 3rpx; color: #9A9C96; font-size: 19rpx; }
+.section-head { display: flex; margin: 34rpx 4rpx 16rpx; align-items: flex-end; justify-content: space-between; }
+.section-title { display: block; font-size: 30rpx; font-weight: 700; }
+.section-desc { display: block; margin-top: 5rpx; color: #92958F; font-size: 20rpx; }
+.save-action, .generate-action { padding: 14rpx 22rpx; border-radius: 16rpx; background: #2F3732; color: #fff; font-size: 21rpx; font-weight: 650; }
+.generate-action { background: #E7EEE8; color: #526158; }
+.disabled { opacity: .55; }
+.days-card, .shopping-card { overflow: hidden; border: 1rpx solid #E0DCD3; border-radius: 26rpx; background: #fff; }
+.day-row { display: grid; min-height: 104rpx; padding: 14rpx 18rpx; grid-template-columns: 98rpx 1fr 1fr; align-items: center; gap: 10rpx; }
+.day-row + .day-row { border-top: 1rpx solid #EEEAE3; }
+.day-name, .day-number, .meal-label, .meal-name, .shopping-name, .shopping-source { display: block; }
+.day-name { font-size: 24rpx; font-weight: 680; }.day-number { margin-top: 3rpx; color: #9A9D96; font-size: 18rpx; }
+.meal-picker { min-width: 0; }.meal-value { padding: 13rpx 14rpx; border-radius: 16rpx; background: #F5F3EE; }.meal-label { color: #92968F; font-size: 17rpx; }.meal-name { margin-top: 3rpx; overflow: hidden; font-size: 21rpx; font-weight: 630; text-overflow: ellipsis; white-space: nowrap; }.meal-name.empty { color: #A5A69F; font-weight: 400; }
+.shopping-head { margin-top: 38rpx; }.shopping-input-row { display: flex; padding: 18rpx; gap: 12rpx; }.shopping-input { height: 76rpx; padding: 0 20rpx; flex: 1; border-radius: 17rpx; background: #F6F4EF; font-size: 23rpx; }.shopping-add { display: flex; width: 112rpx; align-items: center; justify-content: center; border-radius: 17rpx; background: #59675D; color: #fff; font-size: 22rpx; }
+.shopping-row { display: flex; min-height: 88rpx; padding: 0 18rpx; align-items: center; border-top: 1rpx solid #EEEAE3; }.shopping-main { display: flex; min-width: 0; flex: 1; align-items: center; }.shopping-check { display: flex; width: 38rpx; height: 38rpx; margin-right: 16rpx; align-items: center; justify-content: center; border: 2rpx solid #B8BCB5; border-radius: 50%; color: #fff; font-size: 20rpx; }.checked .shopping-check { border-color: #738277; background: #738277; }.shopping-name { font-size: 23rpx; }.checked .shopping-name { color: #999C96; text-decoration: line-through; }.shopping-source { margin-top: 3rpx; color: #A0A29C; font-size: 17rpx; }.shopping-delete { padding: 18rpx 4rpx 18rpx 20rpx; color: #A45E55; font-size: 19rpx; }
+.shopping-empty { padding: 36rpx 24rpx; border-top: 1rpx solid #EEEAE3; color: #989B95; font-size: 21rpx; line-height: 1.6; text-align: center; }.loading-mask { position: fixed; right: 28rpx; bottom: calc(28rpx + env(safe-area-inset-bottom)); left: 28rpx; padding: 20rpx; border-radius: 18rpx; background: rgba(46,53,48,.92); color: #fff; font-size: 21rpx; text-align: center; }

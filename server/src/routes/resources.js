@@ -8,6 +8,12 @@ const {
   removeMediaKeysIfUnreferenced
 } = require('../media');
 const { checkText } = require('../content-safety');
+const { requireCoupleId, requireCoupleTask } = require('./couple-access');
+const {
+  attachNormalizedDishes,
+  removeOrphanDishes,
+  syncMenuDishes
+} = require('../services/menu-store');
 
 const router = express.Router();
 
@@ -282,8 +288,7 @@ function mediaKeysFromRow(resource, row) {
 }
 
 function ensureCouple(req) {
-  if (!req.userRow.couple_id) throw new ApiError(409, '请先绑定情侣');
-  return req.userRow.couple_id;
+  return requireCoupleId(req);
 }
 
 async function ensureMenuNameAvailable(executor, coupleId, name, excludeId = null) {
@@ -299,12 +304,7 @@ async function ensureMenuNameAvailable(executor, coupleId, name, excludeId = nul
 }
 
 async function ensureTaskForCouple(executor, coupleId, taskId) {
-  const [rows] = await executor.query(
-    'SELECT id,title FROM tasks WHERE id=? AND couple_id=? LIMIT 1',
-    [taskId, coupleId]
-  );
-  if (!rows[0]) throw new ApiError(404, '关联清单不存在');
-  return rows[0];
+  return requireCoupleTask(executor, coupleId, taskId);
 }
 
 function rethrowMenuDuplicate(error) {
@@ -313,6 +313,8 @@ function rethrowMenuDuplicate(error) {
 }
 
 router.use(requireAuth);
+router.use(require('./resource-orders'));
+router.use(require('./resource-albums'));
 
 router.get('/:resource', asyncHandler(async (req, res) => {
   const resource = req.params.resource;
@@ -334,7 +336,7 @@ router.get('/:resource', asyncHandler(async (req, res) => {
     conditions.push('r.task_id IS NOT NULL');
   }
   const requestedRows = pagedAlbum ? limit + 1 : limit;
-  const [rows] = await pool.query(
+  let [rows] = await pool.query(
     `SELECT r.*,u.name author_name${definitionValue.select || ''}
      FROM ${definitionValue.table} r
      JOIN users u ON u.id=r.author_id
@@ -344,6 +346,7 @@ router.get('/:resource', asyncHandler(async (req, res) => {
      LIMIT ?`,
     [...params, requestedRows]
   );
+  if (resource === 'menus') rows = await attachNormalizedDishes(pool, coupleId, rows);
   if (pagedAlbum) {
     const hasMore = rows.length > limit;
     const pageRows = hasMore ? rows.slice(0, limit) : rows;
@@ -363,7 +366,7 @@ router.get('/:resource', asyncHandler(async (req, res) => {
 router.get('/:resource/:id', asyncHandler(async (req, res) => {
   const definitionValue = definition(req.params.resource);
   const coupleId = ensureCouple(req);
-  const [rows] = await pool.query(
+  let [rows] = await pool.query(
     `SELECT r.*,u.name author_name${definitionValue.select || ''}
      FROM ${definitionValue.table} r
      JOIN users u ON u.id=r.author_id
@@ -373,181 +376,8 @@ router.get('/:resource/:id', asyncHandler(async (req, res) => {
     [req.params.id, coupleId]
   );
   if (!rows[0]) throw new ApiError(404, '数据不存在');
+  if (req.params.resource === 'menus') rows = await attachNormalizedDishes(pool, coupleId, rows);
   res.json({ success: true, data: output(rows[0], definitionValue) });
-}));
-
-router.post('/orders/:id/accept', asyncHandler(async (req, res) => {
-  const coupleId = ensureCouple(req);
-  const [result] = await pool.query(
-    `UPDATE orders
-     SET status='accepted',accepted_by=?,accepted_by_user_id=?,accepted_at=NOW()
-     WHERE id=? AND couple_id=? AND author_id<>? AND status='pending'`,
-    [req.userRow.name, req.userRow.id, req.params.id, coupleId, req.userRow.id]
-  );
-  if (result.affectedRows) {
-    return res.json({ success: true, data: null });
-  }
-
-  const [rows] = await pool.query(
-    'SELECT author_id,status FROM orders WHERE id=? AND couple_id=? LIMIT 1',
-    [req.params.id, coupleId]
-  );
-  if (!rows[0]) throw new ApiError(404, '点单不存在');
-  if (String(rows[0].author_id) === String(req.userRow.id)) {
-    throw new ApiError(403, '不能接自己的点单');
-  }
-  throw new ApiError(409, rows[0].status === 'accepted' ? '这份点单已经有人接了' : '点单状态已变化');
-}));
-
-router.post('/orders/:id/complete', asyncHandler(async (req, res) => {
-  const coupleId = ensureCouple(req);
-  const [result] = await pool.query(
-    `UPDATE orders
-     SET status='ready',ready_at=COALESCE(ready_at,NOW())
-     WHERE id=? AND couple_id=? AND accepted_by_user_id=? AND status='accepted'`,
-    [req.params.id, coupleId, req.userRow.id]
-  );
-  if (result.affectedRows) {
-    return res.json({ success: true, data: { status: 'ready' } });
-  }
-
-  const [rows] = await pool.query(
-    'SELECT status,accepted_by_user_id FROM orders WHERE id=? AND couple_id=? LIMIT 1',
-    [req.params.id, coupleId]
-  );
-  if (!rows[0]) throw new ApiError(404, '点单不存在');
-  if (rows[0].status === 'ready') throw new ApiError(409, '这份点单已经做好了');
-  if (rows[0].status === 'completed') throw new ApiError(409, '这份点单已经完成');
-  if (String(rows[0].accepted_by_user_id || '') !== String(req.userRow.id)) {
-    throw new ApiError(403, '只有接单人可以标记已做好');
-  }
-  throw new ApiError(409, '请先接单');
-}));
-
-router.post('/orders/:id/ready', asyncHandler(async (req, res) => {
-  const coupleId = ensureCouple(req);
-  const [result] = await pool.query(
-    `UPDATE orders
-     SET status='ready',ready_at=NOW()
-     WHERE id=? AND couple_id=? AND accepted_by_user_id=? AND status='accepted'`,
-    [req.params.id, coupleId, req.userRow.id]
-  );
-  if (result.affectedRows) {
-    return res.json({ success: true, data: { status: 'ready' } });
-  }
-
-  const [rows] = await pool.query(
-    'SELECT status,accepted_by_user_id FROM orders WHERE id=? AND couple_id=? LIMIT 1',
-    [req.params.id, coupleId]
-  );
-  if (!rows[0]) throw new ApiError(404, '点单不存在');
-  if (rows[0].status === 'ready') throw new ApiError(409, '这份点单已经做好了');
-  if (rows[0].status === 'completed') throw new ApiError(409, '这份点单已经完成');
-  if (String(rows[0].accepted_by_user_id || '') !== String(req.userRow.id)) {
-    throw new ApiError(403, '只有接单人可以标记已做好');
-  }
-  throw new ApiError(409, '请先接单');
-}));
-
-router.post('/orders/:id/confirm', asyncHandler(async (req, res) => {
-  const coupleId = ensureCouple(req);
-  const [result] = await pool.query(
-    `UPDATE orders
-     SET status='completed',completed_at=NOW()
-     WHERE id=? AND couple_id=? AND author_id=? AND status='ready'`,
-    [req.params.id, coupleId, req.userRow.id]
-  );
-  if (result.affectedRows) {
-    return res.json({ success: true, data: { status: 'completed' } });
-  }
-
-  const [rows] = await pool.query(
-    'SELECT author_id,status FROM orders WHERE id=? AND couple_id=? LIMIT 1',
-    [req.params.id, coupleId]
-  );
-  if (!rows[0]) throw new ApiError(404, '点单不存在');
-  if (rows[0].status === 'completed') throw new ApiError(409, '这份点单已经确认完成');
-  if (String(rows[0].author_id) !== String(req.userRow.id)) {
-    throw new ApiError(403, '只有下单人可以确认收到');
-  }
-  throw new ApiError(409, rows[0].status === 'accepted' ? '请等待对方做好' : '请先等待对方接单');
-}));
-
-router.post('/albums/batch', asyncHandler(async (req, res) => {
-  const coupleId = ensureCouple(req);
-  const images = req.body?.images;
-  if (!Array.isArray(images) || !images.length || images.length > 9) {
-    throw new ApiError(400, '每次可以保存1至9张照片');
-  }
-  const keys = images.map(value => {
-    const key = String(value || '');
-    assertMediaKeyForCouple(key, coupleId, { allowEmpty: false });
-    return key;
-  });
-  const description = String(req.body.description || '').trim().slice(0, 300);
-  const photoDate = String(req.body.photoDate || '').trim();
-  if (photoDate && !isValidDateOnly(photoDate)) {
-    throw new ApiError(400, '照片日期无效');
-  }
-  await checkText(description, { openid: req.userRow.wechat_openid, scene: 4 });
-
-  const connection = await pool.getConnection();
-  try {
-    await connection.beginTransaction();
-    const ids = [];
-    for (const key of keys) {
-      const [created] = await connection.query(
-        `INSERT INTO albums(couple_id,author_id,image_url,storage_key,description,photo_date)
-         VALUES(?,?,?,?,?,?)`,
-        [coupleId, req.userRow.id, key, key, description, photoDate || null]
-      );
-      ids.push(String(created.insertId));
-    }
-    await connection.commit();
-    return res.status(201).json({ success: true, data: { ids, count: ids.length } });
-  } catch (error) {
-    await connection.rollback();
-    throw error;
-  } finally {
-    connection.release();
-  }
-}));
-
-router.post('/albums/task-photos', asyncHandler(async (req, res) => {
-  const coupleId = ensureCouple(req);
-  const images = req.body?.images;
-  if (!Array.isArray(images) || !images.length || images.length > 9) {
-    throw new ApiError(400, '每次可以关联1至9张照片');
-  }
-  const task = await ensureTaskForCouple(pool, coupleId, req.body.taskId);
-  const keys = images.map(value => {
-    const key = String(value || '');
-    assertMediaKeyForCouple(key, coupleId, { allowEmpty: false });
-    return key;
-  });
-  const description = String(req.body.description || task.title || '').trim().slice(0, 300);
-  await checkText(description, { openid: req.userRow.wechat_openid, scene: 4 });
-
-  const connection = await pool.getConnection();
-  try {
-    await connection.beginTransaction();
-    const ids = [];
-    for (const key of keys) {
-      const [created] = await connection.query(
-        `INSERT INTO albums(couple_id,author_id,task_id,image_url,storage_key,description)
-         VALUES(?,?,?,?,?,?)`,
-        [coupleId, req.userRow.id, task.id, key, key, description]
-      );
-      ids.push(String(created.insertId));
-    }
-    await connection.commit();
-    return res.status(201).json({ success: true, data: { ids, count: ids.length } });
-  } catch (error) {
-    await connection.rollback();
-    throw error;
-  } finally {
-    connection.release();
-  }
 }));
 
 router.post('/menus/batch', asyncHandler(async (req, res) => {
@@ -588,6 +418,7 @@ router.post('/menus/batch', asyncHandler(async (req, res) => {
          VALUES(?,?,?,?,?)`,
         [coupleId, req.userRow.id, menu.name, menu.mealType, JSON.stringify(menu.dishes)]
       );
+      await syncMenuDishes(connection, coupleId, req.userRow.id, created.insertId, menu.dishes);
       ids.push(String(created.insertId));
     }
     await connection.commit();
@@ -629,15 +460,29 @@ router.post('/:resource', asyncHandler(async (req, res) => {
   if (!keys.length) throw new ApiError(400, '没有可保存的数据');
 
   let result;
-  try {
+  if (resource === 'menus') {
+    const connection = await pool.getConnection();
+    try {
+      await connection.beginTransaction();
+      [result] = await connection.query(
+        `INSERT INTO menus (couple_id,author_id,${keys.join(',')})
+         VALUES (?, ?, ${keys.map(() => '?').join(',')})`,
+        [coupleId, req.userRow.id, ...keys.map(key => data[key])]
+      );
+      await syncMenuDishes(connection, coupleId, req.userRow.id, result.insertId, body.dishes);
+      await connection.commit();
+    } catch (error) {
+      await connection.rollback();
+      rethrowMenuDuplicate(error);
+    } finally {
+      connection.release();
+    }
+  } else {
     [result] = await pool.query(
       `INSERT INTO ${definitionValue.table} (couple_id,author_id,${keys.join(',')})
        VALUES (?, ?, ${keys.map(() => '?').join(',')})`,
       [coupleId, req.userRow.id, ...keys.map(key => data[key])]
     );
-  } catch (error) {
-    if (resource === 'menus') rethrowMenuDuplicate(error);
-    throw error;
   }
   if (resource === 'countdown' && data.is_anniversary === 1) {
     await pool.query('UPDATE countdowns SET is_anniversary=0 WHERE couple_id=? AND id<>?', [coupleId, result.insertId]);
@@ -691,16 +536,32 @@ router.patch('/:resource/:id', asyncHandler(async (req, res) => {
   const oldMediaKeys = mediaKeysFromRow(resource, beforeRows[0]);
 
   let result;
-  try {
+  if (resource === 'menus') {
+    const connection = await pool.getConnection();
+    try {
+      await connection.beginTransaction();
+      [result] = await connection.query(
+        `UPDATE menus SET ${keys.map(key => `${key}=?`).join(',')} WHERE id=? AND couple_id=?`,
+        [...keys.map(key => data[key]), req.params.id, coupleId]
+      );
+      if (body.dishes !== undefined) {
+        await syncMenuDishes(connection, coupleId, req.userRow.id, req.params.id, body.dishes);
+        await removeOrphanDishes(connection, coupleId);
+      }
+      await connection.commit();
+    } catch (error) {
+      await connection.rollback();
+      rethrowMenuDuplicate(error);
+    } finally {
+      connection.release();
+    }
+  } else {
     [result] = await pool.query(
       `UPDATE ${definitionValue.table}
        SET ${keys.map(key => `${key}=?`).join(',')}
        WHERE id=? AND couple_id=?`,
       [...keys.map(key => data[key]), req.params.id, coupleId]
     );
-  } catch (error) {
-    if (resource === 'menus') rethrowMenuDuplicate(error);
-    throw error;
   }
   if (!result.affectedRows) throw new ApiError(404, '数据不存在');
   if (resource === 'countdown' && data.is_anniversary === 1) {
@@ -708,41 +569,6 @@ router.patch('/:resource/:id', asyncHandler(async (req, res) => {
   }
   await removeMediaKeysIfUnreferenced(pool, oldMediaKeys);
   res.json({ success: true, data: null });
-}));
-
-router.delete('/albums/batch', asyncHandler(async (req, res) => {
-  const coupleId = ensureCouple(req);
-  const sourceIds = req.body?.ids;
-  if (!Array.isArray(sourceIds)) throw new ApiError(400, '照片列表无效');
-  const ids = Array.from(new Set(sourceIds.map(value => String(value || '').trim())));
-  if (!ids.length || ids.length > 50 || ids.some(id => !/^\d+$/.test(id))) {
-    throw new ApiError(400, '每次可以删除1至50张照片');
-  }
-
-  const connection = await pool.getConnection();
-  let oldMediaKeys = [];
-  try {
-    await connection.beginTransaction();
-    const placeholders = ids.map(() => '?').join(',');
-    const [rows] = await connection.query(
-      `SELECT * FROM albums WHERE couple_id=? AND id IN (${placeholders}) FOR UPDATE`,
-      [coupleId, ...ids]
-    );
-    if (rows.length !== ids.length) throw new ApiError(404, '部分照片不存在，请刷新后重试');
-    oldMediaKeys = rows.flatMap(row => mediaKeysFromRow('album', row));
-    await connection.query(
-      `DELETE FROM albums WHERE couple_id=? AND id IN (${placeholders})`,
-      [coupleId, ...ids]
-    );
-    await connection.commit();
-  } catch (error) {
-    await connection.rollback();
-    throw error;
-  } finally {
-    connection.release();
-  }
-  await removeMediaKeysIfUnreferenced(pool, oldMediaKeys);
-  res.json({ success: true, data: { count: ids.length } });
 }));
 
 router.delete('/:resource/:id', asyncHandler(async (req, res) => {
@@ -768,6 +594,7 @@ router.delete('/:resource/:id', asyncHandler(async (req, res) => {
     [req.params.id, coupleId]
   );
   if (!result.affectedRows) throw new ApiError(404, '数据不存在');
+  if (resource === 'menus') await removeOrphanDishes(pool, coupleId);
   await removeMediaKeysIfUnreferenced(pool, oldMediaKeys);
   res.json({ success: true, data: null });
 }));

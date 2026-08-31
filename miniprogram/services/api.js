@@ -130,6 +130,17 @@ module.exports = {
   readyOrder: id => request(`/resources/orders/${encodeURIComponent(id)}/ready`, { method: 'POST' }),
   confirmOrder: id => request(`/resources/orders/${encodeURIComponent(id)}/confirm`, { method: 'POST' }),
   completeOrder: id => request(`/resources/orders/${encodeURIComponent(id)}/complete`, { method: 'POST' }),
+  getWeekPlan: weekStart => request(`/planning/week?weekStart=${encodeURIComponent(weekStart)}`),
+  saveWeekPlan: (weekStart, entries) => request('/planning/week', { method: 'PUT', data: { weekStart, entries } }),
+  generateShopping: weekStart => request('/planning/week/shopping/generate', { method: 'POST', data: { weekStart } }),
+  addShopping: (weekStart, name, quantity = '') => safetyRequest('/planning/week/shopping', {
+    method: 'POST', data: { weekStart, name, quantity }
+  }),
+  updateShopping: (id, checked) => request(`/planning/week/shopping/${encodeURIComponent(id)}`, {
+    method: 'PATCH', data: { checked }
+  }),
+  deleteShopping: id => request(`/planning/week/shopping/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  timeline: (limit = 50) => request(`/timeline?limit=${encodeURIComponent(limit)}`),
   attachTaskPhotos: (taskId, images, description) => safetyRequest('/resources/albums/task-photos', {
     method: 'POST',
     data: { taskId, images, description }

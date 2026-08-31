@@ -3,8 +3,12 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 
+function routeSource(...files) {
+  return files.map(file => fs.readFileSync(path.join(__dirname, `../src/routes/${file}`), 'utf8')).join('\n');
+}
+
 test('resources are couple scoped and expose the latest creator name', () => {
-  const source = fs.readFileSync(path.join(__dirname, '../src/routes/resources.js'), 'utf8');
+  const source = routeSource('resources.js', 'resource-orders.js', 'resource-albums.js');
   assert.equal(source.includes('u.name author_name'), true);
   assert.equal(source.includes('authorId: String(row.author_id)'), true);
   assert.equal(source.includes("author: row.author_name || ''"), true);
@@ -13,7 +17,7 @@ test('resources are couple scoped and expose the latest creator name', () => {
 });
 
 test('order ownership and state changes are enforced on the server', () => {
-  const source = fs.readFileSync(path.join(__dirname, '../src/routes/resources.js'), 'utf8');
+  const source = routeSource('resources.js', 'resource-orders.js');
   assert.equal(source.includes("router.post('/orders/:id/accept'"), true);
   assert.equal(source.includes("router.post('/orders/:id/ready'"), true);
   assert.equal(source.includes("router.post('/orders/:id/confirm'"), true);
@@ -31,7 +35,7 @@ test('order ownership and state changes are enforced on the server', () => {
 });
 
 test('dish recipes validate couple media and user-entered instructions', () => {
-  const source = fs.readFileSync(path.join(__dirname, '../src/routes/resources.js'), 'utf8');
+  const source = routeSource('resources.js');
   assert.equal(source.includes('assertMediaKeyForCouple(recipeImage, coupleId)'), true);
   assert.equal(source.includes('ingredients.length > 1200'), true);
   assert.equal(source.includes('steps.length > 4000'), true);
@@ -42,7 +46,7 @@ test('dish recipes validate couple media and user-entered instructions', () => {
 });
 
 test('batch menu import is couple scoped and transactional', () => {
-  const source = fs.readFileSync(path.join(__dirname, '../src/routes/resources.js'), 'utf8');
+  const source = routeSource('resources.js');
   assert.equal(source.includes("router.post('/menus/batch'"), true);
   assert.equal(source.includes('sourceMenus.length > 20'), true);
   assert.equal(source.includes('await connection.beginTransaction()'), true);
@@ -50,7 +54,7 @@ test('batch menu import is couple scoped and transactional', () => {
 });
 
 test('menu names are checked for duplicates on create, rename and batch import', () => {
-  const source = fs.readFileSync(path.join(__dirname, '../src/routes/resources.js'), 'utf8');
+  const source = routeSource('resources.js');
   assert.equal(source.includes('async function ensureMenuNameAvailable'), true);
   assert.match(source, /if\s*\(resource === 'menus'\)\s*\{[\s\S]*?ensureMenuNameAvailable\(pool,\s*coupleId,\s*body\.name\)/);
   assert.equal(source.includes("resource === 'menus' && data.name !== undefined"), true);
@@ -59,16 +63,16 @@ test('menu names are checked for duplicates on create, rename and batch import',
 });
 
 test('task photos are linked in one transaction and remain couple scoped', () => {
-  const source = fs.readFileSync(path.join(__dirname, '../src/routes/resources.js'), 'utf8');
+  const source = routeSource('resource-albums.js');
   assert.equal(source.includes("router.post('/albums/task-photos'"), true);
-  assert.equal(source.includes('images.length > 9'), true);
-  assert.equal(source.includes('await ensureTaskForCouple(pool, coupleId, req.body.taskId)'), true);
-  assert.equal(source.includes('INSERT INTO albums(couple_id,author_id,task_id,image_url,storage_key,description)'), true);
-  assert.equal(source.includes('[coupleId, req.userRow.id, task.id, key, key, description]'), true);
+  assert.equal(source.includes('imageKeys(req.body?.images, coupleId, 9'), true);
+  assert.equal(source.includes('await requireCoupleTask(pool, coupleId, req.body?.taskId)'), true);
+  assert.equal(source.includes('INSERT INTO albums(couple_id,author_id,task_id,image_url,storage_key,description,photo_date)'), true);
+  assert.equal(source.includes('[coupleId, req.userRow.id, task?.id || null, key, key, description, photoDate || null]'), true);
 });
 
 test('album pages use a couple-scoped cursor and batch inserts are transactional', () => {
-  const source = fs.readFileSync(path.join(__dirname, '../src/routes/resources.js'), 'utf8');
+  const source = routeSource('resources.js', 'resource-albums.js');
   assert.equal(source.includes("resource === 'album' && String(req.query.paged || '') === '1'"), true);
   assert.equal(source.includes("conditions.push('r.id<?')"), true);
   assert.equal(source.includes("router.post('/albums/batch'"), true);

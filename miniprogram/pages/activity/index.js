@@ -2,6 +2,7 @@
 const app = getApp()
 const api = require('../../services/api')
 const mediaService = require('../../services/media')
+const dateUtils = require('../../utils/date')
 
 Page({
   data: {
@@ -15,7 +16,10 @@ Page({
     modalTitle: '',
     modalValue: '',
     editingTaskId: null,
-    uploadingTaskId: ''
+    uploadingTaskId: '',
+    viewMode: 'list',
+    timeline: [],
+    timelineLoading: false
   },
 
   onLoad(options) {
@@ -24,10 +28,49 @@ Page({
 
   onShow() {
     this.getTasksList();
+    this.loadTimeline();
   },
 
   onPullDownRefresh() {
-    Promise.resolve(this.getTasksList()).finally(() => wx.stopPullDownRefresh());
+    Promise.all([this.getTasksList(), this.loadTimeline()]).finally(() => wx.stopPullDownRefresh());
+  },
+
+  switchView: function(e) {
+    this.setData({ viewMode: e.currentTarget.dataset.view });
+  },
+
+  loadTimeline: function() {
+    if (!app.globalData.coupleId) return Promise.resolve();
+    this.setData({ timelineLoading: true });
+    return api.timeline(60).then(events => {
+      const keys = events.flatMap(event => event.images || []).filter(Boolean);
+      return mediaService.resolveFiles(keys).then(urls => {
+        const timeline = events.map(event => ({
+          ...event,
+          dateText: this.formatTimelineDate(event.eventAt),
+          imageUrls: (event.images || []).map(key => urls[key]).filter(Boolean)
+        }));
+        this.setData({ timeline, timelineLoading: false });
+      });
+    }).catch(error => {
+      console.error('获取共同时间线失败：', error);
+      this.setData({ timelineLoading: false });
+    });
+  },
+
+  formatTimelineDate: function(value) {
+    const date = dateUtils.parseDateTime(value);
+    if (!date) return '';
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}.${month}.${day}`;
+  },
+
+  previewTimeline: function(e) {
+    const event = this.data.timeline.find(item => item.id === e.currentTarget.dataset.id);
+    if (!event?.imageUrls?.length) return;
+    wx.previewImage({ current: e.currentTarget.dataset.url || event.imageUrls[0], urls: event.imageUrls });
   },
 
   checkLogin: function() {

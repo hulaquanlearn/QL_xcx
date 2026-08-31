@@ -16,7 +16,10 @@
       <text class="page-title">今天吃什么</text>
       <text class="page-subtitle">选几道想吃的，发给对方就好</text>
     </view>
-    <view class="manage-entry" bindtap="openMenuManager">管理菜单</view>
+    <view class="header-actions">
+      <view class="planner-entry" bindtap="openPlanner">周菜单</view>
+      <view class="manage-entry" bindtap="openMenuManager">管理</view>
+    </view>
   </view>
 
   <view wx:if="{{activeTab !== 'manage'}}" class="view-switch">

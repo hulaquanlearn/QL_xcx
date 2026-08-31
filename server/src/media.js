@@ -89,6 +89,7 @@ async function isMediaReferenced(pool, key) {
   const checks = await Promise.all([
     pool.query('SELECT id FROM users WHERE avatar_key=? LIMIT 1', [key]),
     pool.query('SELECT id FROM albums WHERE image_url=? OR storage_key=? LIMIT 1', [key, key]),
+    pool.query('SELECT id FROM dishes WHERE image_key=? OR recipe_image_key=? LIMIT 1', [key, key]),
     pool.query("SELECT id FROM menus WHERE JSON_SEARCH(dishes,'one',?) IS NOT NULL LIMIT 1", [key]),
     pool.query("SELECT id FROM orders WHERE JSON_SEARCH(dishes,'one',?) IS NOT NULL LIMIT 1", [key])
   ]);

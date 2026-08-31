@@ -112,7 +112,8 @@ test('all server-side user-published image and text paths invoke content safety 
   const appSource = fs.readFileSync(path.join(__dirname, '../src/app.js'), 'utf8');
   const authSource = fs.readFileSync(path.join(__dirname, '../src/routes/auth.js'), 'utf8');
   const profileSource = fs.readFileSync(path.join(__dirname, '../src/routes/profile.js'), 'utf8');
-  const resourceSource = fs.readFileSync(path.join(__dirname, '../src/routes/resources.js'), 'utf8');
+  const resourceSource = ['resources.js', 'resource-albums.js', 'planning.js']
+    .map(file => fs.readFileSync(path.join(__dirname, '../src/routes', file), 'utf8')).join('\n');
   const callbackSource = fs.readFileSync(path.join(__dirname, '../src/routes/content-safety.js'), 'utf8');
 
   assert.equal((appSource.match(/mediaChecks\.beginCheck/g) || []).length, 2);

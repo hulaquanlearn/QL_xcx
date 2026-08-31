@@ -1,5 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
 const {
   decodeImage,
   parseMediaKey,
@@ -33,4 +35,9 @@ test('media cleanup finds keys nested in menu and order dishes', () => {
   const key = `server-media:7:${'b'.repeat(32)}.webp`;
   const keys = collectMediaKeys({ dishes: [{ image: key }, { image: 'legacy-invalid-key' }] });
   assert.deepEqual([...keys], [key]);
+});
+
+test('normalized dish media remains protected from orphan cleanup', () => {
+  const source = fs.readFileSync(path.join(__dirname, '../src/media.js'), 'utf8');
+  assert.equal(source.includes('SELECT id FROM dishes WHERE image_key=? OR recipe_image_key=?'), true);
 });
