@@ -67,6 +67,7 @@ app.use('/api/couple-space/auth', require('./routes/auth'));
 app.use('/api/couple-space/content-safety', require('./routes/content-safety'));
 app.use('/api/couple-space/planning', require('./routes/planning'));
 app.use('/api/couple-space/timeline', require('./routes/timeline'));
+app.use('/api/couple-space/periods', require('./routes/periods'));
 app.use('/api/couple-space/resources', require('./routes/resources'));
 app.use('/api/couple-space', require('./routes/profile'));
 

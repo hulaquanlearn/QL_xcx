@@ -1,0 +1,55 @@
+<view class="period-page">
+  <text class="eyebrow">A LITTLE CARE</text>
+  <text class="title">留意身体的节奏</text>
+  <text class="subtitle">记录是为了更了解自己，不必追求标准答案。</text>
+  <view class="tabs">
+    <button class="tab {{view === 'self' ? 'selected' : ''}}" data-view="self" bindtap="switchView" disabled="{{busy}}">我的记录</button>
+    <button class="tab {{view === 'partner' ? 'selected' : ''}}" data-view="partner" bindtap="switchView" disabled="{{busy}}">伴侣共享</button>
+  </view>
+  <view wx:if="{{loading}}" class="state">正在读取私密记录…</view>
+  <view wx:elif="{{error}}" class="state"><text>{{error}}</text><button class="soft-button" bindtap="load">重试</button></view>
+  <view wx:elif="{{!available}}" class="state"><text>暂时没有可查看的共享记录</text><text class="subtitle">只有绑定的伴侣主动开启共享后，这里才会显示。</text></view>
+  <block wx:else>
+    <view class="summary-card">
+      <text class="card-label">{{view === 'self' ? '自己的节奏' : '对方分享的节奏 · 只读'}}</text>
+      <text wx:if="{{summary.activeId}}" class="status-title">本次记录第 {{summary.activeDays}} 天</text>
+      <text wx:else class="status-title">{{summary.recordCount ? '慢慢积累，慢慢了解' : '从第一次记录开始'}}</text>
+      <view class="stats"><view><text class="number">{{summary.recordCount}}</text><text class="muted">已记录次数</text></view><view><text class="number">{{summary.typicalCycle || '—'}}</text><text class="muted">近期周期间隔 / 天</text></view></view>
+      <text wx:if="{{summary.predictionState === 'insufficient'}}" class="estimate">至少记录 4 次开始日期后，才尝试估算下次日期。</text>
+      <text wx:elif="{{summary.predictionState === 'variable'}}" class="estimate">近期记录间隔波动较大，暂不估算下次日期。</text>
+      <text wx:elif="{{summary.predictionState === 'overdue'}}" class="estimate">上次估算为 {{summary.predictedDate}}，日期已过。请以实际情况补记，不自动顺延。</text>
+      <text wx:else class="estimate">下次开始日期估算：{{summary.predictedDate}} · {{summary.daysUntil === 0 ? '今天' : '约 ' + summary.daysUntil + ' 天后'}}</text>
+      <view wx:if="{{view === 'self'}}" class="actions"><button wx:if="{{summary.activeId}}" class="primary-button" bindtap="finish" disabled="{{busy}}">今天结束</button><button wx:else class="primary-button" bindtap="openEditor" disabled="{{busy}}">记录本次开始</button><button class="soft-button" data-history="{{true}}" bindtap="openEditor" disabled="{{busy}}">补录日期</button></view>
+    </view>
+    <view class="panel">
+      <view class="calendar-head"><button data-delta="-1" bindtap="changeMonth" aria-label="上个月">‹</button><text>{{month}}</text><button data-delta="1" bindtap="changeMonth" aria-label="下个月">›</button></view>
+      <view class="calendar"><text wx:for="{{weekdays}}" wx:key="*this" class="weekday">{{item}}</text><view wx:for="{{cells}}" wx:key="key" class="day {{item.recorded ? 'recorded' : ''}} {{item.predicted ? 'predicted' : ''}} {{item.today ? 'today' : ''}}">{{item.label}}</view></view>
+      <text class="legend">实色：已记录日期　虚线：估算开始日　下划线：今天</text>
+    </view>
+    <view wx:if="{{view === 'self'}}" class="privacy-card"><view><text class="section-name">{{sharing ? '已向伴侣共享日期' : '仅本人可见'}}</text><text class="muted">经量与身体感受始终不向伴侣展示</text></view><button class="privacy-button" bindtap="toggleSharing" disabled="{{busy}}">{{sharing ? '关闭共享' : '共享设置'}}</button></view>
+    <view class="history-heading"><text class="section-name">历史记录</text><text class="muted">最近 240 条</text></view>
+    <view wx:if="{{!records.length}}" class="state">还没有记录，无需填写任何身体感受也可以保存。</view>
+    <view wx:for="{{records}}" wx:key="id" class="record">
+      <text class="record-date">{{item.startDate}} — {{item.endDate || '进行中'}}</text>
+      <text class="muted">{{item.endDate ? '共' : '已记录'}} {{item.duration}} 天</text>
+      <text wx:if="{{view === 'self' && item.detail}}" class="detail">{{item.detail}}</text>
+      <view wx:if="{{view === 'self'}}" class="record-actions"><button data-id="{{item.id}}" bindtap="openEditor" disabled="{{busy}}">修改</button><button data-id="{{item.id}}" bindtap="remove" disabled="{{busy}}">删除</button></view>
+    </view>
+    <text class="disclaimer">仅作生活记录，估算可能不准确，不能用于避孕或诊断。如有不适或疑问，请咨询专业医务人员。记录存于本项目服务器，不进入共同时间线。</text>
+  </block>
+  <view wx:if="{{showEditor}}" class="overlay" catchtap="closeEditor" catchtouchmove="noop">
+    <view class="editor" catchtap="noop">
+      <view class="editor-head"><text class="section-name">{{editId ? '修改记录' : '新建记录'}}</text><button bindtap="closeEditor" disabled="{{busy}}" aria-label="关闭">×</button></view>
+      <scroll-view scroll-y class="editor-body">
+        <text class="field-label">开始日期</text><picker mode="date" value="{{form.startDate}}" start="1900-01-01" end="{{today}}" data-field="startDate" bindchange="setDate"><view class="field-value">{{form.startDate}}<text>选择</text></view></picker>
+        <view class="switch-row"><text>本次尚未结束</text><switch checked="{{form.ongoing}}" bindchange="setOngoing" color="#92796F"/></view>
+        <block wx:if="{{!form.ongoing}}"><text class="field-label">结束日期</text><picker mode="date" value="{{form.endDate}}" start="{{form.startDate}}" end="{{today}}" data-field="endDate" bindchange="setDate"><view class="field-value">{{form.endDate}}<text>选择</text></view></picker></block>
+        <text class="field-label">本次整体经量 · 选填，仅自己可见</text><picker range="{{flows}}" value="{{flowIndex}}" bindchange="setFlow"><view class="field-value">{{flows[flowIndex]}}<text>选择</text></view></picker>
+        <text class="field-label">整体不适程度 · 选填，仅自己可见</text><picker range="{{pains}}" value="{{painIndex}}" bindchange="setPain"><view class="field-value">{{pains[painIndex]}}<text>选择</text></view></picker>
+        <text class="field-label">身体感受 · 可多选，仅自己可见</text><view class="chips"><button wx:for="{{symptomOptions}}" wx:key="value" class="chip {{item.selected ? 'chosen' : ''}}" data-value="{{item.value}}" bindtap="toggleSymptom">{{item.label}}</button></view>
+        <text class="muted">只是个人记录，不会据此判断健康状况。</text>
+      </scroll-view>
+      <view class="editor-footer"><button class="soft-button" bindtap="closeEditor" disabled="{{busy}}">取消</button><button class="primary-button" bindtap="save" loading="{{busy}}" disabled="{{busy}}">保存记录</button></view>
+    </view>
+  </view>
+</view>

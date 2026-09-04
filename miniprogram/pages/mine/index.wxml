@@ -35,6 +35,7 @@
   <view class="menu-section">
     <text class="section-title">设置</text>
     <view class="menu-list">
+      <view class="menu-item" bindtap="goToPeriod"><text class="menu-text">经期记录</text><text class="menu-value">私密记录与共享设置</text><text class="menu-arrow">›</text></view>
       <view class="menu-item" bindtap="clearCache"><text class="menu-text">清理临时缓存</text><text class="menu-value">立即清理</text><text class="menu-arrow">›</text></view>
       <view class="menu-item logout-item" bindtap="logout"><text class="menu-text">退出登录</text><text class="menu-arrow">›</text></view>
     </view>

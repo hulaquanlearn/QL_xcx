@@ -5,6 +5,7 @@ const avatarService = require('../../services/avatar');
 const mediaService = require('../../services/media');
 
 Page({
+  goToPeriod() { wx.navigateTo({ url: '/pages/period/index' }); },
   data: {
     userInfo: null,
     partnerInfo: null,

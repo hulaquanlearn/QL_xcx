@@ -61,3 +61,5 @@ page { background: #F6F4EF; }
 .nav-item { display: flex; flex: 1; height: 80rpx; align-items: center; justify-content: center; gap: 12rpx; border-radius: 24rpx; color: #8A8E87; font-size: 23rpx; }
 .nav-item.active { background: #ECE8DF; color: #343832; font-weight: 650; }
 .nav-icon { width: 34rpx; height: 34rpx; opacity: .72; }
+.period-entry { display:flex;align-items:center;justify-content:space-between;padding:28rpx;background:#EFEAE3;border-radius:26rpx;margin:24rpx 0;color:#6A7065; }
+.period-entry .section-title { margin-bottom:8rpx;font-size:28rpx; }

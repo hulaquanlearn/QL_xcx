@@ -9,6 +9,7 @@
     "pages/food/planner/index",
     "pages/food/order-detail/index",
     "pages/activity/index",
+    "pages/period/index",
     "pages/mine/index"
   ],
   "window": {

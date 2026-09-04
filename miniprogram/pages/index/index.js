@@ -256,6 +256,10 @@ onLoad: function() {
     wx.navigateTo({ url: '/pages/mine/index' });
   },
 
+  goToPeriod: function() {
+    wx.navigateTo({ url: '/pages/period/index' });
+  },
+
   // 图片加载失败
   imgError: function() {},
 })

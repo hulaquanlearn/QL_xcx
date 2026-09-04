@@ -141,6 +141,10 @@ module.exports = {
   }),
   deleteShopping: id => request(`/planning/week/shopping/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   timeline: (limit = 50) => request(`/timeline?limit=${encodeURIComponent(limit)}`),
+  periods: (view = 'self') => request(`/periods?view=${encodeURIComponent(view)}`),
+  savePeriod: (id, data) => request(`/periods${id ? '/' + encodeURIComponent(id) : ''}`, { method: id ? 'PUT' : 'POST', data }),
+  deletePeriod: id => request(`/periods/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  sharePeriods: shareWithPartner => request('/periods/settings', { method: 'PATCH', data: { shareWithPartner } }),
   attachTaskPhotos: (taskId, images, description) => safetyRequest('/resources/albums/task-photos', {
     method: 'POST',
     data: { taskId, images, description }

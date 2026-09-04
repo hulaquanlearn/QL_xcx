@@ -87,6 +87,8 @@
       </view>
     </block>
 
+    <view class="period-entry" bindtap="goToPeriod"><view><text class="section-title">经期记录</text><text class="section-note">留意身体的节奏 · 默认仅本人可见</text></view><text>›</text></view>
+
     <view class="bottom-nav">
       <view class="nav-item active"><image class="nav-icon" src="/images/icons/首页.png" mode="aspectFit"></image><text>首页</text></view>
       <view class="nav-item" bindtap="goToMine"><image class="nav-icon" src="/images/icons/我的.png" mode="aspectFit"></image><text>我的</text></view>
