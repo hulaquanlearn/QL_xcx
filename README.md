@@ -11,9 +11,29 @@
 - `miniprogram/`：小程序页面、统一 API 服务和会话管理。
 - `server/`：Node.js、Express、MySQL API。
 - `server/sql/schema.sql`：全新安装所需的完整数据库结构。
-- `server/sql/migrate-v2.5.0.sql` 至 `migrate-v2.11.0.sql`：已有服务器升级所需的幂等迁移。
+- `server/sql/migrate-v*.sql`：历史版本至 v2.11.0 的增量迁移，按实际升级起点选择，不能当作旧文件删除。
 - `scripts/`：只读项目检查和带测试、文件哈希验证的部署包生成工具。
 - `.github/workflows/quality.yml`：提交到 main / 拉取请求后自动验证；不连接生产数据库，不自动部署。
+
+## 当前交接状态（2026-09-05）
+
+**后续接手先读本节、下方“维护经验与不可回退的约定”，再查看当前代码和部署回报。本文记录的是本地交付状态，不代表服务器已经升级。**
+
+- 当前源码版本：`2.11.0`，具体改动见下一节；部署说明为 `OPENCLAW_DEPLOY_V2.11.0.md`。
+- 已生成并验证的服务端部署包：`release/couple-space-v2.11.0-openclaw-20260905-184221.zip`，106615 字节、60 个归档条目；它是完整服务端源码包，不含小程序代码，不能当作小程序上传包。
+- 该包 SHA256：`B78950D49B6589BFDA56272A5867B9BE9295C2BAB3AD8D0F3F5F04D65657FEDF`。这是上述特定 ZIP 的校验值，重新打包后必须重新取值，不能沿用。
+- 打包时实际测试：服务端 **59 / 59 通过、0 失败**；小程序逻辑 **56 / 56 通过、0 失败**，已复核包内 `release-manifest.json`。这些是本次交付快照，不是以后版本必须满足的固定数量。
+- 本轮实现交付前已完成：81 个 JS 文件语法检查、JSON 与页面文件检查；微信工具命令行 WXML 编译 12 个文件、WXSS 编译 13 个文件通过；当时依赖审计返回 0 个已知漏洞。编译器语法通过不等于页面视觉、网络或真机体验已验收，依赖审计也需要随时间重新执行。
+- **尚待确认：** v2.11.0 生产 MySQL 迁移、服务器依赖安装及重启、线上接口回归、微信开发者工具完整运行和双方账号真机验收。未收到这些步骤的实际回报前，不将其标记为完成。
+- 交付顺序：OpenClaw 按当前说明升级服务器及数据库 → 核对 health 和权限 → 用户发布小程序并按说明自测。不要让新版收藏、分页客户端长期连接旧后端。
+- 清理复查：旧部署包已移除，`release/` 只保留上述 ZIP；2026-09-05 本次复查确认 `server/node_modules/` 已不存在。上一次自动删除被执行环境拦截，不能把那次尝试写成删除成功。源码、测试、必要图标、菜单预设、迁移、Git 记录和 `project.private.config.json` 保留。
+- 本次仅补充维护文档与交接经验，不改业务代码、不执行生产部署、不代替用户提交或推送 Git；也不改父目录菜单工具。已验证 ZIP 保持不变，因此包内 README 是打包时的文档快照；接手记录以仓库当前 README 为准，下一次打包会自动包含更新。
+
+依赖目录不存在不影响微信开发者工具打开小程序；本地运行后端、测试或重新打包前，先恢复依赖：
+
+```powershell
+npm ci --prefix "D:\wx_xiangm\qlcx\server" --omit=dev
+```
 
 ## v2.11.0 稳定性、图片体验与导航
 
@@ -130,10 +150,13 @@
 在项目根目录执行：
 
 ```powershell
+node scripts\check-project.js
 node --test test\*.test.js
 npm ci --prefix server --omit=dev
 npm test --prefix server
 ```
+
+`check-project.js` 是只读预检，覆盖版本/锁文件、JS 语法、JSON 和页面文件存在性，不编译 WXML、不连接数据库、不调用微信审核。依赖已经清理时先执行上面的 `npm ci`，再运行服务端测试或打包。
 
 health 的 data.version 应为 2.11.0、database 为 connected。测试数量按实际输出报告，失败就停止，不改断言放行。自动测试不能代替生产 MySQL 迁移、微信开发者工具编译或真机验收。
 
@@ -146,7 +169,7 @@ Set-Location "D:\wx_xiangm\qlcx"
 ./scripts/build-release.ps1
 ```
 
-脚本不安装依赖、不连接生产环境、不删除旧包、不提交 Git。测试或归档验证失败立即停止；成功输出 ZIP 路径及 SHA256。确认新包后再移除旧包，避免误发旧版本。
+脚本不安装依赖、不运行依赖审计、不连接生产环境、不删除旧包、不提交 Git。测试或归档验证失败立即停止；成功输出 `Release verified`、ZIP 路径及 SHA256。创建归档之后出错可能留下不完整 ZIP，不能只看文件存在或时间最新就交付；确认验证成功后再移除旧包，避免误发旧版本。根目录 `scripts/` 是本地维护工具，不包含在服务端 ZIP 中。
 
 ## 保留与清理规则
 
@@ -154,6 +177,55 @@ Set-Location "D:\wx_xiangm\qlcx"
 - 不删除真实业务数据，不改动父目录中的菜单模板工具。
 - release/ 只留最新服务端 ZIP，Git 已忽略该目录，需单独发送给 OpenClaw。
 - 部署包不含 .env、node_modules、日志、媒体、数据库备份或 Git 历史。
+- `node_modules/` 是可重装依赖，不是业务数据；删除后必须保留 `package.json` 和 `package-lock.json`。历史迁移不是无用旧文件，不能因版本较早就删除。
+- `.gitignore` 中的条目不等于可删除：`release/` 和 `project.private.config.json` 都有实际用途。不使用 `git clean -fdx` 一次性清空忽略文件。
+- 递归删除前确认解析后的绝对路径在本项目内，检查符号链接/目录联接，列清单后定点处理。工具拦截或执行失败要如实记录，不能宣称清理完成。
+
+## 维护经验与不可回退的约定
+
+### 产品、数据与权限
+
+- 保持“小程序 → HTTPS API → 云服务器 MySQL / 私有媒体目录”的架构，不重新加入云开发兼容层、公开注册、聊天或旧解绑接口。手工账号与微信身份分开；一个微信号可切换多个账号，微信身份只作用于当前登录会话，不替代账号鉴权。
+- 所有共同数据按服务端当前会话的 `couple_id` 限定；收藏、经期等个人信息按 `user_id` 限定。客户端传来的账号、性别、情侣 ID、创建人昵称不是授权依据。读、写、删除、分页、图片原图与缩略图都要检查同一边界，不能只隐藏按钮。
+- 经期功能以女方记录为主、男方只读主动共享内容；共享默认关闭且绑定当前情侣关系，不进共同时间线、不持久化缓存、不添加医学或避孕结论。权限细节以本 README 经期章节和服务端实现为准。
+- 头像、相册、菜品图、步骤图均以服务器媒体标识为持久引用，不能将手机临时路径或某台电脑的缓存路径存入共享记录。预览可使用本机缓存，但另一设备必须能重新鉴权下载同一份媒体。
+- 权限不能承诺“绝对不会外泄”或“端到端加密”：服务器管理员、数据库备份和已被对方保存的内容有独立风险。不要在日志、测试输出、README 或部署包中放真实密码、密钥、令牌、图片或健康记录。
+
+### 常见问题及对应回归
+
+- **异步旧请求覆盖新页面：** 切周、切筛选、刷新、换账号都要识别请求所属上下文；过期响应不得写入新状态。加载失败不当空数据保存，后台采购刷新不覆盖未保存草稿，离开编辑前提示。
+- **重复操作与并发接单：** 前端防重复点击只是体验保护，服务端仍需事务、权限和状态条件。接单后锁定订单快照；“已做好”由接单人执行，“确认收到”由下单人执行，不能从通用 PATCH 绕过闭环。
+- **上传像卡住或重复入库：** 展示上传、审核、保存各阶段与逐图失败原因；审核是异步结果，不等于发版审核。超时保留审核编号，只重试失败阶段；不能绕过审核，也不能对结果不明的写请求盲目重发。
+- **头像跨设备看不到、图片闪烁：** 检查持久媒体引用、鉴权下载、缓存键与会话清理；下载并发需有上限并合并同图请求，列表先显示文字/元数据，原图按需加载。缩略图不能覆盖原图，缓存命中也不能省略鉴权。
+- **列表缺项导致整页崩溃：** 菜单/菜品数组中的空值、历史缺图、已删除关联项和不完整响应都要有明确兜底，不直接对不存在的项读取 `.image`。前端兜底不代替后端输入校验。
+- **日期在 iOS 错误或纪念日年份不一致：** 优先复用 `miniprogram/utils/date.js`，不要直接解析 MySQL 的 `YYYY-MM-DD HH:mm:ss` 字符串；日期语义、标题和天数必须来自同一条记录。覆盖跨年、当天、未来日期、闰日、时区和非法日期。
+- **文字/按钮错位、顶栏叠字、照片变形：** 检查小程序原生 input/button 默认尺寸、行高、自定义导航与安全区，不把浏览器截图当作真机验收。头像可按设计裁切，照片和步骤长图保留比例；重点验收 iOS、Android 和不同屏幕宽度。保持暖中性、低饱和、克制的情侣风格。
+- **代码包图片质量告警：** 区分代码包内静态资源与运行时上传图片，不为消除包体告警把全部用户照片压到 190KB。代码包只留实际引用的小图标与必要资源，核对 `miniprogramRoot` 和实际打包内容。
+- **资料改名后创建人仍是旧昵称：** 先区分当前用户资料、关系型作者身份与有意保留的历史订单快照；动态展示通过用户身份关联更新，历史快照不得随菜单修改悄悄改变。
+- **分页、收藏与采购状态丢失：** 游标排序要稳定并处理同时间记录；筛选后重置游标、丢弃旧页响应，统计不能只算当前页。采购重新生成保留仍需食材的已购状态和手动项，个人收藏不得改变伴侣收藏。
+
+### 验证、发布与接手方式
+
+- 先检查 `git status` 和用户已有改动，再改相关文件；不要用重置、覆盖或清理操作抹掉用户工作。提交、推送、服务器部署、小程序发版是不同步骤，分别报告结果。
+- 修复应增加对应的行为回归，尤其是实际 HTTP 返回、权限、并发状态和坏数据边界。源码字符串断言不能替代行为验证；曾发生测试断言与真实错误文案不一致，交付前要跑实际测试，不能让 OpenClaw 临时改测试“放行”。
+- 测试数量以执行结果和 `release-manifest.json` 为准；数量增多且全部通过不是自动失败。若与清单不一致，先核对包、哈希与执行范围；任何真实失败都应说明原因并停止部署，不降低安全校验。
+- 分开记录静态检查、模拟测试、真实 MySQL 迁移、微信编译、界面/真机验证、线上验收。没有执行的项目写“未执行”；网络错误不能记为审计零漏洞，health 成功也不能代表整个业务闭环成功。
+- OpenClaw 交接必须包含唯一最新包、版本与哈希、升级起点、备份范围、增量 SQL、依赖/运行时要求、重启对象、预期响应和回滚边界。`schema.sql` 只用于空库；保留生产 `.env`、媒体和数据，不操作 `spare-parts`。
+- 微信密钥已重置、服务配置和 JSON 内容安全回调已完成，除用户明确要求或出现验证失败，不反复要求重配；不读取或复述历史密钥。`sharp` 属于原生依赖，必须在目标服务器安装，不打包 Windows 的依赖目录。
+- 本地桌面菜单工具位于 `D:\wx_xiangm\menu-template-library`，不属于本项目清理范围。涉及批量导入、图片审核或步骤图协议变更时，需另行核对工具兼容性，不只改小程序一端就宣称全链路完成。
+- 每次实质修改后更新 README 的版本、完成项、验证证据、待办与部署影响；继续工作时重新核对实际文件及最新部署回报。历史记录和长期记忆是定位线索，不是当前线上状态的证明。
+
+### 维护定位
+
+| 维护区域 | 主要代码入口 | 优先核对的回归 |
+| --- | --- | --- |
+| 会话、跨账号清理、导航 | `miniprogram/services/auth.js`、`navigation.js`、`custom-tab-bar/` | `test/session-expiry.test.js`、`home-and-navigation.test.js` |
+| 首页纪念日与日期 | `miniprogram/utils/home.js`、`date.js` | `test/home-and-navigation.test.js`、`countdown-date.test.js` |
+| 相册、上传与私有缩略图 | `miniprogram/pages/album/`、`services/upload-queue.js`、`services/media.js`；`server/src/routes/resource-albums.js`、`services/media-thumbnails.js` | `test/album-media-upgrade.test.js`、`server/test/media-thumbnails.test.js` |
+| 菜单、订单与分页 | `miniprogram/pages/food/modules/`；`server/src/routes/resources.js`、`resource-orders.js`、`services/resource-list.js` | `test/food-planning-regression.test.js`、`server/test/workflow-regressions.test.js` |
+| 周菜单、采购与时间线 | `miniprogram/pages/food/planner/`、`pages/activity/`；`server/src/routes/planning.js`、`timeline.js`、`services/shopping-plan.js` | `test/pagination-and-review.test.js`、`server/test/planning-and-normalization.test.js` |
+| 经期隐私与男女权限 | `miniprogram/pages/period/`、`utils/period.js`；`server/src/routes/periods.js`、`services/periods.js` | `test/period.test.js`、`server/test/periods.test.js` |
+| 发布与增量升级 | `scripts/check-project.js`、`scripts/build-release.ps1`、`server/sql/`、当前 OpenClaw 说明 | 实际 ZIP 清单/哈希、两端测试、服务器结构及用户真机回报 |
 
 ## 账号由管理员创建
 
