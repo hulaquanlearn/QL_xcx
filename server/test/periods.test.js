@@ -47,12 +47,14 @@ test('period HTTP authorization, explicit sharing, owner writes and overlap roll
   let sharing;
   let touched = 0;
   let coupleId = 9;
+  let gender = 'male';
   pool.query = async (sql, params) => {
-    if (sql.includes('FROM sessions s')) return [[{ id: 1, couple_id: coupleId, session_id: 3 }]];
+    if (sql.includes('FROM sessions s')) return [[{ id: 1, gender, couple_id: coupleId, session_id: 3 }]];
     touched++;
     if (sql.includes('LEFT JOIN period_records')) {
       assert.deepEqual(params, [9, 1]);
       assert.match(sql, /s.share_with_partner=1 AND s.shared_couple_id=u.couple_id/);
+      assert.match(sql, /u.gender='female'/);
       assert.doesNotMatch(sql, /r\.(flow|pain|symptoms)/);
       return [mode === 'shared' ? [{ owner_id: 2, id: 10, start_date: '2026-08-01', end_date: '2026-08-04', flow: 'heavy', symptoms: ['fatigue'] }] : []];
     }
@@ -83,12 +85,31 @@ test('period HTTP authorization, explicit sharing, owner writes and overlap roll
     assert.equal((await fetch(base)).status, 401);
     let response = await request('?view=partner&userId=999');
     assert.equal(response.headers.get('cache-control'), 'no-store');
-    assert.deepEqual((await response.json()).data, { available: false });
+    assert.deepEqual((await response.json()).data, { available: false, role: 'male' });
     mode = 'shared';
     const shared = (await (await request('?view=partner')).json()).data;
     assert.equal(shared.own, false);
     assert.deepEqual(Object.keys(shared.records[0]).sort(), ['endDate', 'id', 'startDate']);
+    // Forged view and gender cannot grant male accounts an owner view or write access.
+    const forged = (await (await request('?view=self&gender=female')).json()).data;
+    assert.equal(forged.own, false);
+    assert.equal(forged.role, 'male');
+    for (const blockedGender of ['male', 'other', undefined]) {
+      gender = blockedGender;
+      const beforeWrite = touched;
+      for (const [suffix, method, body] of [
+        ['', 'POST', { startDate: '2026-08-01', gender: 'female' }],
+        ['/10', 'PUT', { startDate: '2026-08-01' }],
+        ['/10', 'DELETE', undefined],
+        ['/settings', 'PATCH', { shareWithPartner: true }],
+        ['/settings', 'PATCH', { shareWithPartner: false }]
+      ]) assert.equal((await request(suffix, method, body)).status, 403);
+      assert.equal(touched, beforeWrite);
+      if (blockedGender !== 'male') assert.deepEqual((await (await request()).json()).data, { available: false, role: 'unspecified' });
+    }
+    gender = 'female';
     const own = (await (await request('?userId=999')).json()).data;
+    assert.equal(own.role, 'female');
     assert.equal(own.sharing, false, 'sharing from an old couple is not inherited');
     assert.equal(own.records[0].flow, 'light');
     assert.equal((await request('/settings', 'PATCH', { shareWithPartner: true, userId: 99 })).status, 200);
@@ -96,9 +117,11 @@ test('period HTTP authorization, explicit sharing, owner writes and overlap roll
     assert.equal((await request('/settings', 'PATCH', { shareWithPartner: false })).status, 200);
     assert.deepEqual(sharing, [1, 0, null]);
     coupleId = null;
+    gender = 'male';
     const before = touched;
-    assert.deepEqual((await (await request('?view=partner')).json()).data, { available: false });
+    assert.deepEqual((await (await request('?view=partner')).json()).data, { available: false, role: 'male' });
     assert.equal(touched, before);
+    gender = 'female';
     assert.equal((await request('/settings', 'PATCH', { shareWithPartner: true })).status, 409);
     coupleId = 9;
     assert.equal((await request('/88', 'DELETE')).status, 404);

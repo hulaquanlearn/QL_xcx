@@ -1,4 +1,4 @@
-# 情侣空间小程序
+# 情侣空间 · v2.11.0
 
 原生微信小程序，提供纪念日、共同相册、必做清单、今日点菜、情侣绑定和个人资料。业务链路为：
 
@@ -11,17 +11,44 @@
 - `miniprogram/`：小程序页面、统一 API 服务和会话管理。
 - `server/`：Node.js、Express、MySQL API。
 - `server/sql/schema.sql`：全新安装所需的完整数据库结构。
-- `server/sql/migrate-v2.5.0.sql` 至 `migrate-v2.10.0.sql`：已有服务器升级所需的幂等迁移。
+- `server/sql/migrate-v2.5.0.sql` 至 `migrate-v2.11.0.sql`：已有服务器升级所需的幂等迁移。
+- `scripts/`：只读项目检查和带测试、文件哈希验证的部署包生成工具。
+- `.github/workflows/quality.yml`：提交到 main / 拉取请求后自动验证；不连接生产数据库，不自动部署。
 
-## v2.10.0 经期记录
+## v2.11.0 稳定性、图片体验与导航
 
-- 首页和“我的”可进入经期记录；未绑定伴侣的账号也可单独使用，不按账号性别限制。
+- 修复周菜单快速切周导致旧请求覆盖新周的问题；未保存修改提示确认，加载失败时禁止保存，采购操作不会覆盖菜单草稿。
+- 订单修改、删除使用数据库状态条件，接单与修改同时发生时返回冲突，不破坏已接单快照与完成流程。
+- 清单完成时间由服务器记录，重复完成不刷新时间，取消完成清空时间；旧记录缺少完成时间时不虚构回填，时间线标明未记录。
+- 重新生成采购清单采用增量合并，保留仍需要食材的已购状态和手动条目；显示来源菜品，可打开食材与做法。
+- 首页置顶纪念日的标题、日期和天数来源统一，支持未来日期与当天；未设置时提供明确入口。
+- “首页 / 经期 / 我的”改为共享自定义 tabBar，登录前隐藏；辅助文字加深、字体和操作区统一，保留暖中性风格。
+- 订单、清单、共同时间线支持游标分页和失败重试。清单的筛选数量是服务端总数，成果照片进入相册按关联任务查看。
+- 相册增加月份筛选和个人收藏；收藏按 `user_id` 保存，只属于当前账号，照片本身仍由情侣双方共享。
+- 相册与清单成果图逐张显示上传、审核、保存、失败状态，失败只重试未完成阶段；审核超时保留审核编号，已经保存的图片不会重新上传。
+- 菜品、做法图和头像区分上传与审核阶段；不会绕过微信安全审核，审核不通过的图片不会发布。
+- 列表文字先显示，图片逐张补齐；媒体下载全局最多 4 并发，上传队列最多 2 并发，切换账号清理缓存与旧请求。
+- 列表使用保比例缩略图，打开相册预览后才下载当前原图，支持左右翻图与点图放大。原始照片不被缩略图覆盖。
+- 服务端使用 `sharp` 懒生成私有缩略图，沿用图片鉴权，不开放公共图片目录；需 Node.js >= 20.9.0，并在服务器执行 `npm ci --omit=dev` 安装目标平台依赖。
+- 本次新增 `album_favorites` 表，升级必须执行 `migrate-v2.11.0.sql`。微信现有配置不变，个人账号无公开注册，经期权限规则保持不变。
+- 发布脚本运行两端测试后打包，ZIP 内 `release-manifest.json` 自动记录实际测试数量和每个文件 SHA256，避免人工抄写旧预期。
+
+借鉴 [Mealie](https://github.com/mealie-recipes/mealie) 的采购来源、[Immich](https://github.com/immich-app/immich) 的相册定位与收藏、[TDesign](https://github.com/Tencent/tdesign-miniprogram) 的逐图状态交互；未复制第三方界面素材或引入完整产品框架。
+
+## v2.10.1 经期记录
+
+- 首页底部为“首页｜经期｜我的”，中间使用新增的田园犬图标，移除首页旧经期卡片；“我的”中保留设置入口。
+- 女方（gender=female）：管理自己的记录，自主决定是否共享；未绑定伴侣也可单独记录。
+- 男方（gender=male）：只查看同一情侣空间女方主动共享的日期和估算，不显示新增、编辑、删除或共享按钮。后端也拒绝男方写入，即使伪造 gender 或 view 参数。
+- 未设置身份（other 或缺失）：提示到“我的”完善资料，不读取经期记录。
+- 页面身份由服务端当前登录账号决定，不依赖客户端缓存。身份设置是产品分工，不是身份证明；改变自己的身份也不能取得其他账号的私密记录。
+- 升级不删除旧版男方误录的数据，也不转移给女方；这些记录在新版不再显示或共享。
 - 支持开始、结束、补录、修改、删除，月历和最近 240 条历史。经量、不适程度、身体感受为固定可选项，不收集自由文本或照片。
-- 本人登录账号才可管理记录；共享默认关闭。主动开启后，当前情侣空间的伴侣只能查看日期与统计，不能编辑，也看不到经量、痛感或身体感受。共享不会自动继承到另一个情侣空间。
-- 不进入共同时间线、首页统计或持久化本地缓存；离开页面清理健康记录，接口返回 `Cache-Control: no-store`。切换视图会丢弃过时请求，避免显示上一视图数据。
+- 女方只能管理本人记录；共享默认关闭。主动开启后，当前情侣空间的伴侣只能查看日期与统计，不能编辑，也看不到经量、痛感或身体感受。共享不会自动继承到另一个情侣空间。
+- 不进入共同时间线、首页统计或持久化本地缓存；离开页面清理健康记录，接口返回 `Cache-Control: no-store`。刷新或换账号时会丢弃过时请求，避免显示上一账号的数据。
 - 周期间隔取最近最多 6 个间隔的中位数；至少 4 次开始记录后才估算。任一间隔小于 15 天、大于 90 天，或最大/最小间隔差大于 10 天时，停止估算。这些是产品保守阈值，不代表医学正常范围。过期预测不会顺延。
 - 仅生活记录，不提供排卵期、安全期、避孕建议或医学诊断；没有接入微信后台通知。所有日期以北京时间的自然日记录。
-- 新增 `period_records` 和 `period_settings` 两表；升级步骤见 `OPENCLAW_DEPLOY_V2.10.0.md`。
+- 沿用 `period_records` 和 `period_settings` 两表，v2.10.0 → v2.10.1 无新 SQL；当前完整升级步骤见 `OPENCLAW_DEPLOY_V2.11.0.md`。
 - 依赖锁文件更新 MySQL2，`qs` 临时覆盖到修复版 `6.16.0`，Express 保持 4.x。对应上游公告：[MySQL2](https://github.com/advisories/GHSA-rgwj-5xj2-c3m3)、[qs](https://github.com/advisories/GHSA-4mjr-xmp4-gh2g)。后续 Express 原生支持修复版本后可重新评估该覆盖。
 
 ### 隐私与部署边界
@@ -89,65 +116,44 @@
 
 `/wxa/getuserriskrank` 属于额外的账号风险分级能力，本版本没有把它作为正常登录或发布的强制条件，避免个人维护账号因接口权限或风控结果被误锁。
 
-## 已有服务器升级
+## 部署与验证
 
-先备份数据库、源码和图片目录，再依次执行已有迁移与 v2.9.0 迁移：
+部署包和说明以 v2.11.0 为准，见 [当前部署说明](OPENCLAW_DEPLOY_V2.11.0.md)。先部署后端和增量数据库迁移，再发布小程序；否则新增收藏、分页等接口不能正常使用。
 
-```bash
-cd /opt/couple-space/server
-mysql -h 127.0.0.1 -u couple_space -p couple_space < sql/migrate-v2.1.0.sql
-mysql -h 127.0.0.1 -u couple_space -p couple_space < sql/migrate-v2.2.1.sql
-mysql -h 127.0.0.1 -u couple_space -p couple_space < sql/migrate-v2.3.0.sql
-mysql -h 127.0.0.1 -u couple_space -p couple_space < sql/migrate-v2.5.0.sql
-mysql -h 127.0.0.1 -u couple_space -p couple_space < sql/migrate-v2.5.1.sql
-mysql -h 127.0.0.1 -u couple_space -p couple_space < sql/migrate-v2.6.0.sql
-mysql -h 127.0.0.1 -u couple_space -p couple_space < sql/migrate-v2.7.0.sql
-mysql -h 127.0.0.1 -u couple_space -p couple_space < sql/migrate-v2.8.0.sql
-mysql -h 127.0.0.1 -u couple_space -p couple_space < sql/migrate-v2.9.0.sql
-npm ci --omit=dev
-npm run migrate-menu-data
-mkdir -p /opt/couple-space/data/avatars
-mkdir -p /opt/couple-space/data/media
-mkdir -p /opt/couple-space/data/pending-media
+- v2.10.0 / v2.10.1 → v2.11.0：执行 migrate-v2.11.0.sql，更新源码和锁文件、安装依赖、测试重启。
+- v2.9.0：先补 migrate-v2.10.0.sql，再执行 v2.11.0 SQL。
+- v2.8.x：先补 v2.9.0 SQL 和菜单数据迁移，再依次执行 v2.10.0、v2.11.0 SQL。
+- 更旧版本或结构不符：先核对迁移起点，不盲目重跑所有脚本。
+
+仅操作 couple_space 和 /opt/couple-space/server，不影响 spare-parts。生产 .env、图片、数据库均保留。已有微信密钥与 JSON 回调无需重配。API/MySQL 保持回环监听，Nginx 请求体 6m 不变。
+
+在项目根目录执行：
+
+```powershell
+node --test test\*.test.js
+npm ci --prefix server --omit=dev
+npm test --prefix server
 ```
 
-生产服务器 `.env` 需要保留或加入：
+health 的 data.version 应为 2.11.0、database 为 connected。测试数量按实际输出报告，失败就停止，不改断言放行。自动测试不能代替生产 MySQL 迁移、微信开发者工具编译或真机验收。
 
-```dotenv
-AVATAR_DIR=/opt/couple-space/data/avatars
-MEDIA_DIR=/opt/couple-space/data/media
-PENDING_MEDIA_DIR=/opt/couple-space/data/pending-media
-PUBLIC_BASE_URL=https://czsdsg.cn
-WECHAT_APP_ID=微信小程序AppID
-WECHAT_APP_SECRET=仅保存在服务器的新AppSecret
-WECHAT_MESSAGE_TOKEN=与微信消息推送配置一致的随机Token
+依赖审计：npm audit --prefix server --omit=dev --registry=https://registry.npmjs.org。网络失败不能当作零漏洞。
+
+需要重新生成可交付部署包时，在 PowerShell 中执行：
+
+```powershell
+Set-Location "D:\wx_xiangm\qlcx"
+./scripts/build-release.ps1
 ```
 
-微信密钥和 JSON 内容安全回调已经完成配置。常规部署不得重置密钥、修改回调格式或回显任何密钥；只有用户明确要求或验证发现配置失效时才处理微信平台配置。
+脚本不安装依赖、不连接生产环境、不删除旧包、不提交 Git。测试或归档验证失败立即停止；成功输出 ZIP 路径及 SHA256。确认新包后再移除旧包，避免误发旧版本。
 
-Nginx 示例见 `server/nginx/couple-space.conf.example`。API 路由必须保留 `client_max_body_size 6m`；内容安全路径关闭访问日志，避免待审核图片的临时访问令牌进入日志。
+## 保留与清理规则
 
-## 验证
-
-```bash
-cd /opt/couple-space/server
-npm ci --omit=dev
-npm test
-pm2 restart couple-space-api
-pm2 save
-curl -sS http://127.0.0.1:3001/api/couple-space/health
-curl -sS https://czsdsg.cn/api/couple-space/health
-```
-
-健康接口的 `data.version` 应为 `2.9.0`，`data.contentSafety` 应为 `configured`。测试总数以当前源码实际输出为准，必须全部通过，不使用写死的历史数量代替结果。
-
-部署完成后，先用新版小程序登录一次，再执行：
-
-```bash
-npm run check-content-security
-```
-
-该脚本不会写入业务数据，也不会打印 OpenID、AppSecret 或微信访问令牌。若提示没有最近登录的微信身份，先在新版小程序重新登录，再重试。
+- 保留源代码、测试、必要图标、菜单预设、历史 SQL 迁移和有效项目配置。
+- 不删除真实业务数据，不改动父目录中的菜单模板工具。
+- release/ 只留最新服务端 ZIP，Git 已忽略该目录，需单独发送给 OpenClaw。
+- 部署包不含 .env、node_modules、日志、媒体、数据库备份或 Git 历史。
 
 ## 账号由管理员创建
 

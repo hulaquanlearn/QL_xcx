@@ -26,7 +26,7 @@ page { background: #F6F4EF; }
 .task-photos { padding: 0 24rpx 22rpx; }
 .task-photo-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 8rpx; overflow: hidden; border-radius: 18rpx; }
 .task-photo { width: 100%; height: 126rpx; background: #E4E0D8; }
-.task-photo-count { display: block; margin-top: 10rpx; color: #8D918A; font-size: 20rpx; }
+.task-photo-count { display: block; margin-top: 10rpx; color: var(--text-secondary); font-size: 24rpx; }
 .task-actions { display: flex; border-top: 1rpx solid #EEEAE2; }
 .action-btn { display: flex; flex: 1; min-height: 72rpx; padding: 14rpx 18rpx; align-items: center; justify-content: center; color: #737871; font-size: 23rpx; line-height: 1.4; text-align: center; }
 .action-btn.photo-action { color: #596A5E; font-weight: 600; }
@@ -48,9 +48,15 @@ page { background: #F6F4EF; }
 .timeline-card { margin: 0 0 18rpx 8rpx; padding: 25rpx; border: 1rpx solid #E2DED5; border-radius: 25rpx; background: #fff; }
 .timeline-head { display: flex; align-items: center; justify-content: space-between; }
 .timeline-type { color: #7A8A7E; font-size: 18rpx; font-weight: 680; letter-spacing: 2rpx; }
-.timeline-date { color: #A0A39D; font-size: 19rpx; }
+.timeline-date { color: var(--text-secondary); font-size: 24rpx; }
 .timeline-title { display: block; margin-top: 12rpx; color: #343934; font-size: 28rpx; font-weight: 680; }
 .timeline-desc { display: block; margin-top: 7rpx; color: #848981; font-size: 22rpx; line-height: 1.6; }
 .timeline-photos { display: grid; margin-top: 17rpx; grid-template-columns: repeat(4,1fr); gap: 7rpx; overflow: hidden; border-radius: 17rpx; }
 .timeline-photo { width: 100%; height: 118rpx; background: #E6E2DA; }
-.timeline-author { display: block; margin-top: 15rpx; color: #9A9D96; font-size: 19rpx; }
+.timeline-author { display: block; margin-top: 15rpx; color: var(--text-secondary); font-size: 24rpx; }
+.task-upload-panel { margin: 24rpx 0; padding: 24rpx; border: 1rpx solid var(--border-color); border-radius: var(--radius-md); background: white; }
+.task-upload-row { display: flex; gap: 16rpx; align-items: center; padding: 14rpx 0; border-bottom: 1rpx solid var(--border-color); }
+.task-upload-preview { width: 80rpx; height: 80rpx; flex-shrink: 0; background: var(--bg-soft); border-radius: 12rpx; }
+.task-upload-copy { flex: 1; min-width: 0; font-size: 26rpx; }
+.task-upload-error { display: block; color: var(--danger-color); font-size: 24rpx; }
+.task-upload-row button { min-width: 88rpx; min-height: 88rpx; font-size: 24rpx; color: var(--primary-dark); }

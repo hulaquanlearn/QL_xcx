@@ -73,8 +73,11 @@ test('task photos are linked in one transaction and remain couple scoped', () =>
 
 test('album pages use a couple-scoped cursor and batch inserts are transactional', () => {
   const source = routeSource('resources.js', 'resource-albums.js');
-  assert.equal(source.includes("resource === 'album' && String(req.query.paged || '') === '1'"), true);
-  assert.equal(source.includes("conditions.push('r.id<?')"), true);
+  const { listOptions } = require('../src/services/resource-list');
+  const options = listOptions('album', { paged: '1', cursor: '20' }, 9, 1);
+  assert.equal(options.paged, true);
+  assert.deepEqual(options.conditions, ['r.couple_id=?', 'r.id<?']);
+  assert.deepEqual(options.params, [9, '20']);
   assert.equal(source.includes("router.post('/albums/batch'"), true);
   assert.equal(source.includes('nextCursor'), true);
   assert.equal(source.includes("router.delete('/albums/batch'"), true);

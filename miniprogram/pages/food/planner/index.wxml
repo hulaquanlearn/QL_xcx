@@ -1,15 +1,42 @@
 <view class="planner-page">
   <view class="planner-intro"><text class="eyebrow">WEEKLY TABLE</text><text class="page-title">这一周吃什么</text><text class="page-desc">先安排大概，再把要买的东西列出来。</text></view>
-  <view class="week-nav"><view class="week-arrow" bindtap="changeWeek" data-offset="-1">‹</view><view class="week-copy"><text class="week-label">{{weekLabel}}</text><text class="week-hint">周一至周日</text></view><view class="week-arrow" bindtap="changeWeek" data-offset="1">›</view></view>
-  <view class="section-head"><view><text class="section-title">一周安排</text><text class="section-desc">午餐和晚餐各选一份菜单</text></view><view class="save-action {{saving ? 'disabled' : ''}}" bindtap="savePlan">{{saving ? '保存中' : '保存'}}</view></view>
+  <view class="week-nav"><button class="week-arrow" bindtap="changeWeek" data-offset="-1" disabled="{{saving || generating}}" aria-label="上一周">‹</button><view class="week-copy"><text class="week-label">{{weekLabel}}</text><text class="week-hint">周一至周日</text></view><button class="week-arrow" bindtap="changeWeek" data-offset="1" disabled="{{saving || generating}}" aria-label="下一周">›</button></view>
+  <view wx:if="{{loadError}}" class="load-error"><text>{{loadError}}</text><button bindtap="loadData">重新加载</button></view>
+  <view class="section-head"><view><text class="section-title">一周安排</text><text class="section-desc {{dirty ? 'unsaved' : ''}}">{{dirty ? '有未保存的修改' : '午餐和晚餐各选一份菜单'}}</text></view><button class="save-action" bindtap="savePlan" disabled="{{loading || loadError || saving || generating}}" loading="{{saving}}">{{saving ? '保存中' : '保存'}}</button></view>
   <view class="days-card">
     <view wx:for="{{days}}" wx:key="index" class="day-row">
       <view class="day-date"><text class="day-name">{{item.label}}</text><text class="day-number">{{item.date}}</text></view>
-      <picker class="meal-picker" mode="selector" range="{{menuOptions}}" range-key="label" bindchange="selectPlanMenu" data-day="{{item.index}}" data-meal="lunch"><view class="meal-value"><text class="meal-label">午餐</text><text class="meal-name {{item.lunch ? '' : 'empty'}}">{{item.lunch || '未安排'}}</text></view></picker>
-      <picker class="meal-picker" mode="selector" range="{{menuOptions}}" range-key="label" bindchange="selectPlanMenu" data-day="{{item.index}}" data-meal="dinner"><view class="meal-value"><text class="meal-label">晚餐</text><text class="meal-name {{item.dinner ? '' : 'empty'}}">{{item.dinner || '未安排'}}</text></view></picker>
+      <picker class="meal-picker" mode="selector" range="{{menuOptions}}" range-key="label" disabled="{{loading || loadError || saving || generating}}" bindchange="selectPlanMenu" data-day="{{item.index}}" data-meal="lunch"><view class="meal-value"><text class="meal-label">午餐</text><text class="meal-name {{item.lunch ? '' : 'empty'}}">{{item.lunch || '未安排'}}</text></view></picker>
+      <picker class="meal-picker" mode="selector" range="{{menuOptions}}" range-key="label" disabled="{{loading || loadError || saving || generating}}" bindchange="selectPlanMenu" data-day="{{item.index}}" data-meal="dinner"><view class="meal-value"><text class="meal-label">晚餐</text><text class="meal-name {{item.dinner ? '' : 'empty'}}">{{item.dinner || '未安排'}}</text></view></picker>
     </view>
   </view>
-  <view class="section-head shopping-head"><view><text class="section-title">采购清单</text><text class="section-desc">已完成 {{shoppingDone}} / {{shopping.length}}</text></view><view class="generate-action {{generating ? 'disabled' : ''}}" bindtap="generateShopping">{{generating ? '生成中' : '按食材生成'}}</view></view>
-  <view class="shopping-card"><view class="shopping-input-row"><input class="shopping-input" value="{{newShoppingName}}" bindinput="onShoppingInput" bindconfirm="addShopping" confirm-type="done" maxlength="150" placeholder="例如：牛奶、鸡蛋"/><view class="shopping-add" bindtap="addShopping">添加</view></view><view wx:if="{{shopping.length}}" class="shopping-list"><view wx:for="{{shopping}}" wx:key="id" class="shopping-row {{item.checked ? 'checked' : ''}}"><view class="shopping-main" bindtap="toggleShopping" data-id="{{item.id}}"><view class="shopping-check">{{item.checked ? '✓' : ''}}</view><view><text class="shopping-name">{{item.name}}</text><text class="shopping-source">{{item.source === 'plan' ? '来自本周菜单' : '手动添加'}}</text></view></view><view class="shopping-delete" bindtap="deleteShopping" data-id="{{item.id}}">删除</view></view></view><view wx:else class="shopping-empty">还没有采购项，可以手动添加或按菜单食材生成。</view></view>
+  <view class="section-head shopping-head"><view><text class="section-title">采购清单</text><text class="section-desc">已购买 {{shoppingDone}} / {{shopping.length}}</text></view><button class="generate-action" disabled="{{loading || loadError || saving || generating}}" loading="{{generating}}" bindtap="generateShopping">{{generating ? '生成中' : '按食材生成'}}</button></view>
+  <text class="shopping-note">重新生成会保留已有勾选和手动添加项；食材用量请按实际人数确认。</text>
+  <view class="shopping-card">
+    <view class="shopping-input-row"><input class="shopping-input" value="{{newShoppingName}}" bindinput="onShoppingInput" bindconfirm="addShopping" confirm-type="done" maxlength="150" placeholder="例如：牛奶、鸡蛋"/><button class="shopping-add" disabled="{{loading}}" bindtap="addShopping">添加</button></view>
+    <view wx:if="{{shopping.length}}" class="shopping-list">
+      <view wx:for="{{shopping}}" wx:key="id" class="shopping-item {{item.checked ? 'checked' : ''}}">
+        <view class="shopping-row">
+          <view class="shopping-main" bindtap="toggleShopping" data-id="{{item.id}}" role="checkbox" aria-checked="{{item.checked}}" aria-label="{{item.name}}"><view class="shopping-check">{{item.checked ? '✓' : ''}}</view><view><text class="shopping-name">{{item.name}} {{item.quantity}}</text><text class="shopping-source">{{item.source === 'plan' ? '来自本周菜单' : '手动添加'}}</text></view></view>
+          <button class="shopping-delete" bindtap="deleteShopping" data-id="{{item.id}}" aria-label="删除{{item.name}}">删除</button>
+        </view>
+        <view wx:if="{{item.sources.length}}" class="shopping-recipes"><button wx:for="{{item.sources}}" wx:for-item="source" wx:key="dishId" class="recipe-source" bindtap="openShoppingRecipe" data-menuid="{{source.menuId}}" data-dishid="{{source.dishId}}">{{source.dishName}} · 查看做法 ›</button></view>
+      </view>
+    </view>
+    <view wx:else class="shopping-empty">还没有采购项，可以手动添加或按菜单食材生成。</view>
+  </view>
   <view wx:if="{{loading}}" class="loading-mask">正在同步本周安排</view>
+</view>
+
+<view wx:if="{{sourceRecipe}}" class="recipe-mask" bindtap="closeShoppingRecipe">
+  <view class="recipe-sheet" catchtap="preventBubble">
+    <view class="recipe-sheet-head"><view><text class="section-title">{{sourceRecipe.name}}</text><text class="section-desc">{{sourceRecipe.menuName}}</text></view><button class="recipe-close" bindtap="closeShoppingRecipe" aria-label="关闭做法">×</button></view>
+    <scroll-view class="recipe-content" scroll-y>
+      <text class="recipe-heading">食材准备</text><text class="recipe-copy">{{sourceRecipe.ingredients || '还没有填写食材'}}</text>
+      <text class="recipe-heading">制作步骤</text><text class="recipe-copy">{{sourceRecipe.steps || '还没有填写步骤，可在菜单管理中补充'}}</text>
+      <block wx:if="{{sourceRecipe.tips}}"><text class="recipe-heading">小贴士</text><text class="recipe-copy">{{sourceRecipe.tips}}</text></block>
+      <text wx:if="{{sourceRecipeLoading}}" class="recipe-copy">说明图加载中…</text>
+      <image wx:if="{{sourceRecipe.recipeImage}}" class="recipe-poster" src="{{sourceRecipe.recipeImage}}" mode="widthFix" bindtap="previewRecipeImage"></image>
+    </scroll-view>
+  </view>
 </view>

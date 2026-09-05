@@ -2,6 +2,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const config = require('./config');
 const { ApiError } = require('./utils');
+const { removeThumbnails } = require('./services/media-thumbnails');
 
 const MEDIA_KEY_RE = /^server-media:(\d+):([a-f0-9]{32}\.(?:jpg|png|webp))$/;
 const LEGACY_AVATAR_KEY_RE = /^server-avatar:([a-f0-9]{32}\.(?:jpg|png|webp))$/;
@@ -82,6 +83,7 @@ async function deleteMediaKey(key) {
   const parsed = parseMediaKey(key);
   if (!parsed) return false;
   await fs.promises.unlink(mediaPath(parsed.coupleId, parsed.filename)).catch(() => {});
+  await removeThumbnails(parsed.coupleId, parsed.filename);
   return true;
 }
 

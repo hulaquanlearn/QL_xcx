@@ -1,14 +1,11 @@
 <view class="period-page">
   <text class="eyebrow">A LITTLE CARE</text>
-  <text class="title">留意身体的节奏</text>
-  <text class="subtitle">记录是为了更了解自己，不必追求标准答案。</text>
-  <view class="tabs">
-    <button class="tab {{view === 'self' ? 'selected' : ''}}" data-view="self" bindtap="switchView" disabled="{{busy}}">我的记录</button>
-    <button class="tab {{view === 'partner' ? 'selected' : ''}}" data-view="partner" bindtap="switchView" disabled="{{busy}}">伴侣共享</button>
-  </view>
+  <text class="title">{{role === 'male' ? '关心她的节奏' : '留意身体的节奏'}}</text>
+  <text class="subtitle">{{role === 'male' ? '她分享的日期，一起记在心上。' : '简单记录，慢慢了解自己。'}}</text>
   <view wx:if="{{loading}}" class="state">正在读取私密记录…</view>
   <view wx:elif="{{error}}" class="state"><text>{{error}}</text><button class="soft-button" bindtap="load">重试</button></view>
-  <view wx:elif="{{!available}}" class="state"><text>暂时没有可查看的共享记录</text><text class="subtitle">只有绑定的伴侣主动开启共享后，这里才会显示。</text></view>
+  <view wx:elif="{{role === 'unspecified'}}" class="state"><text>请先完善个人资料中的身份</text><text class="subtitle">女方管理自己的记录，男方查看女方主动共享的日期。</text><button class="soft-button" bindtap="openProfile">去完善资料</button></view>
+  <view wx:elif="{{!available}}" class="state"><text>对方暂未开启共享</text><text class="subtitle">绑定伴侣后，由她在经期页面自主开启。</text></view>
   <block wx:else>
     <view class="summary-card">
       <text class="card-label">{{view === 'self' ? '自己的节奏' : '对方分享的节奏 · 只读'}}</text>

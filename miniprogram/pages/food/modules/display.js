@@ -12,7 +12,7 @@ function createDisplayMethods({ app, dateUtils, mediaService }) {
           }
         });
       });
-      return mediaService.resolveFiles(keys).then(urls => records.map(record => ({
+      return mediaService.resolveFiles(keys, { variant: includeRecipe ? 'original' : 'thumbnail' }).then(urls => records.map(record => ({
         ...record,
         dishes: (record.dishes || []).map(dish => {
           const imageKey = dish.imageKey || dish.image || '';
@@ -57,6 +57,8 @@ function createDisplayMethods({ app, dateUtils, mediaService }) {
     formatOrdersTime(orders) {
       const currentUserId = String(app.globalData.userInfo?.id || app.globalData.userId || '');
       return orders.map(order => {
+        const isMine = String(order.authorId || '') === currentUserId;
+        const isAcceptedByMe = String(order.acceptedByUserId || '') === currentUserId;
         let date = null;
         if (order.createTime && typeof order.createTime === 'object' && order.createTime.toDate) {
           date = order.createTime.toDate();
@@ -67,8 +69,15 @@ function createDisplayMethods({ app, dateUtils, mediaService }) {
           ...order,
           menuName: Array.isArray(order.menuNames) ? order.menuNames.join('、') : (order.menuName || ''),
           formattedTime: this.formatDate(date),
-          isMine: String(order.authorId || '') === currentUserId,
-          isAcceptedByMe: String(order.acceptedByUserId || '') === currentUserId,
+          isMine,
+          isAcceptedByMe,
+          nextActionText: order.status === 'completed'
+            ? '这份点单已完成，制作说明仍可回看'
+            : order.status === 'ready'
+              ? (isMine ? '已经做好了，收到后点「收到啦」完成订单' : '已做好，等待下单人确认收到')
+              : order.status === 'accepted'
+                ? (isAcceptedByMe ? '按制作说明准备，完成后点「已做好」' : '对方正在准备，做好后会更新到这里')
+                : (isMine ? '等待对方接单；接单前可以撤回' : '接下这份点单，就可以开始准备了'),
           statusText: order.status === 'completed'
             ? '已完成'
             : order.status === 'ready'

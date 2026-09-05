@@ -1,15 +1,37 @@
 <wxs module="utils">function includes(arr,value){if(!arr)return false;for(var i=0;i<arr.length;i++){if(arr[i]===value)return true;}return false;}module.exports.includes=includes;</wxs>
 <view class="container album-page">
-  <view class="page-intro"><text class="page-kicker">OUR MOMENTS</text><text class="page-title">共同相册</text><text class="page-desc">不追求完整，只留下真正喜欢的瞬间。</text></view>
+  <view class="page-intro"><text class="page-kicker">OUR MOMENTS</text><text class="page-title">{{taskId ? '清单成果照片' : '共同相册'}}</text><text class="page-desc">{{taskId ? '一起做过的事，也有照片替我们记得。' : '留下喜欢的瞬间，慢慢装满我们的日常。'}}</text></view>
+  <view wx:if="{{taskId}}" class="task-filter-note"><text>当前仅展示这项清单的成果照片</text><button class="text-button" bindtap="clearTaskFilter">查看全部</button></view>
+  <view class="album-filters">
+    <picker mode="selector" range="{{monthOptions}}" range-key="label" value="{{monthIndex}}" bindchange="changeMonth"><view class="month-filter">{{monthOptions[monthIndex].label}} <text>⌄</text></view></picker>
+    <button class="favorite-filter {{favoriteOnly ? 'filter-active' : ''}}" bindtap="changeFavorites">{{favoriteOnly ? '★ 我的收藏' : '☆ 我的收藏'}}</button>
+  </view>
+  <text wx:if="{{favoriteOnly}}" class="privacy-note">收藏标记仅自己可见，照片仍属于共同相册。</text>
+  <view wx:if="{{uploadItems.length}}" class="upload-panel">
+    <view class="upload-panel-heading"><text>照片上传 · {{uploadSummary}}</text><button wx:if="{{uploading}}" class="text-button" bindtap="pauseUploads">暂停</button><button wx:elif="{{uploadPaused}}" class="text-button" bindtap="resumeUploads">继续处理</button><button wx:else class="text-button" bindtap="clearFinishedUploads">收起已完成</button></view>
+    <text class="upload-note">图片审核通过后才会进入相册。退出此页会结束未完成的任务，已保存的照片不受影响。</text>
+    <view class="upload-items"><view wx:for="{{uploadItems}}" wx:key="id" class="upload-item"><image src="{{item.path}}" mode="aspectFill" class="upload-preview"/><view class="upload-item-content"><text class="upload-status status-{{item.status}}">{{item.label}}</text><text wx:if="{{item.error}}" class="upload-error">{{item.error}}</text><text wx:elif="{{item.status === 'moderating'}}" class="upload-note">正在等待微信返回结果</text></view><button wx:if="{{item.status === 'failed' && !item.rejected}}" class="retry-button" data-id="{{item.id}}" bindtap="retryUpload">重试此张</button><text wx:if="{{item.status === 'ready'}}" class="upload-ready">✓</text></view></view>
+  </view>
   <view class="album-grid">
     <block wx:for="{{groupedAlbumList}}" wx:key="date">
       <view class="date-section"><text class="date-title">{{item.date}}</text><text class="date-count">{{item.photos.length}} 张</text></view>
-      <view class="date-photos"><view wx:for="{{item.photos}}" wx:key="_id" class="photo-item {{selectMode && utils.includes(selectedPhotos, item._id) ? 'photo-selected' : ''}}"><image src="{{item.imgUrl}}" mode="widthFix" class="photo-img" bindtap="previewImage" data-imgurl="{{item.imgUrl}}" data-id="{{item._id}}"></image><text wx:if="{{item.taskTitle && !selectMode}}" class="photo-source">来自清单 · {{item.taskTitle}}</text><view wx:if="{{selectMode}}" class="photo-checkbox {{utils.includes(selectedPhotos, item._id) ? 'checked' : ''}}" bindtap="toggleSelect" data-id="{{item._id}}"><text wx:if="{{utils.includes(selectedPhotos, item._id)}}">✓</text></view></view></view>
+      <view class="date-photos"><view wx:for="{{item.photos}}" wx:key="_id" class="photo-item {{selectMode && utils.includes(selectedPhotos, item._id) ? 'photo-selected' : ''}}">
+        <image wx:if="{{item.imgUrl}}" src="{{item.imgUrl}}" mode="widthFix" lazy-load class="photo-img" bindtap="previewImage" binderror="imageFailed" data-id="{{item._id}}"/>
+        <view wx:else class="photo-placeholder"><text>{{item.imageState === 'failed' ? '暂时无法加载' : '照片加载中'}}</text><button wx:if="{{item.imageState === 'failed'}}" class="text-button" data-id="{{item._id}}" bindtap="retryImage">重新加载</button></view>
+        <text wx:if="{{item.taskTitle && !selectMode}}" class="photo-source">来自清单 · {{item.taskTitle}}</text>
+        <button wx:if="{{!selectMode}}" class="photo-favorite {{item.favorite ? 'is-favorite' : ''}}" data-id="{{item._id}}" bindtap="toggleFavorite" aria-label="{{item.favorite ? '取消收藏照片' : '收藏照片'}}">{{item.favorite ? '★' : '☆'}}</button>
+        <button wx:if="{{selectMode}}" class="photo-checkbox {{utils.includes(selectedPhotos, item._id) ? 'checked' : ''}}" bindtap="toggleSelect" data-id="{{item._id}}" aria-label="选择照片"><text wx:if="{{utils.includes(selectedPhotos, item._id)}}">✓</text></button>
+      </view></view>
     </block>
   </view>
-  <view class="action-buttons"><view class="action-btn select-btn" bindtap="toggleSelectMode">{{selectMode ? '完成选择' : '管理'}}</view><view class="action-btn upload-btn" bindtap="chooseImage">上传照片</view></view>
-  <view wx:if="{{selectMode && selectedPhotos.length > 0}}" class="batch-delete-btn" bindtap="batchDeletePhotos">删除已选 {{selectedPhotos.length}} 张</view>
-  <view wx:if="{{albumList.length === 0 && !loading}}" class="empty-state"><view class="empty-icon">相</view><text class="empty-text">相册还是空的</text><text class="empty-subtext">上传一张最近喜欢的照片</text></view>
-  <view wx:if="{{albumList.length && (loadingMore || !hasMore)}}" class="album-page-state">{{loadingMore ? '正在加载更多照片…' : '已经看到全部照片'}}</view>
-  <view wx:if="{{loading}}" class="loading-state"><view class="loading-spinner"></view><text class="loading-text">正在加载</text></view>
+  <view class="action-buttons"><button class="action-btn select-btn" bindtap="toggleSelectMode">{{selectMode ? '完成选择' : '管理照片'}}</button><button class="action-btn upload-btn" bindtap="chooseImage">{{uploading ? '正在处理照片' : (taskId ? '添加成果照片' : '上传照片')}}</button></view>
+  <button wx:if="{{selectMode && selectedPhotos.length > 0}}" class="batch-delete-btn" bindtap="batchDeletePhotos" loading="{{deleting}}" disabled="{{deleting}}">删除已选 {{selectedPhotos.length}} 张</button>
+  <view wx:if="{{albumList.length === 0 && !loading && !loadError}}" class="empty-state"><view class="empty-icon">相</view><text class="empty-text">{{favoriteOnly ? '还没有收藏照片' : (month ? '这个月还没有照片' : '相册还是空的')}}</text><text class="empty-subtext">{{favoriteOnly ? '点击照片右上角的星星，留下一份自己的精选' : '从最近的一张照片开始，留下共同回忆'}}</text></view>
+  <view wx:if="{{loadError}}" class="album-error"><text>{{loadError}}</text><button class="retry-button" bindtap="retryLoad">重新加载</button></view>
+  <view wx:if="{{loading || loadingMore || (albumList.length && !hasMore)}}" class="album-page-state">{{loading || loadingMore ? '正在加载照片…' : '已经看到全部照片'}}</view>
+</view>
+<view wx:if="{{previewVisible}}" class="photo-viewer" catchtouchmove="preventScroll">
+  <view class="viewer-toolbar"><text>{{previewIndex + 1}} / {{previewPhotos.length}}</text><button class="viewer-close" bindtap="closePreview" aria-label="关闭照片预览">×</button></view>
+  <swiper class="viewer-swiper" current="{{previewIndex}}" bindchange="changePreview" duration="220"><swiper-item wx:for="{{previewPhotos}}" wx:key="_id"><view class="viewer-slide"><image wx:if="{{(item.original || item.thumbnail) && index >= previewIndex - 1 && index <= previewIndex + 1}}" src="{{item.original || item.thumbnail}}" mode="aspectFit" class="viewer-photo" bindtap="zoomPreview" binderror="previewImageFailed" data-index="{{index}}"/><view wx:if="{{item.loading}}" class="viewer-state">正在加载原图…</view><view wx:if="{{item.error && !item.loading}}" class="viewer-state"><text>原图暂时无法加载</text><button class="viewer-retry" bindtap="retryPreview">重试</button></view></view></swiper-item></swiper>
+  <text class="viewer-hint">左右滑动浏览 · 点击已加载的原图可放大</text>
 </view>

@@ -3,9 +3,10 @@ const api = require('../../services/api');
 const auth = require('../../services/auth');
 const avatarService = require('../../services/avatar');
 const mediaService = require('../../services/media');
+const { syncTabBar } = require('../../services/navigation');
 
 Page({
-  goToPeriod() { wx.navigateTo({ url: '/pages/period/index' }); },
+  goToPeriod() { wx.switchTab({ url: '/pages/period/index' }); },
   data: {
     userInfo: null,
     partnerInfo: null,
@@ -32,6 +33,7 @@ Page({
 
   onShow() {
     if (!this.checkLogin()) return;
+    syncTabBar(this, 2);
     this.refreshPage();
   },
 

@@ -1,0 +1,5 @@
+<view wx:if="{{visible}}" class="bottom-nav">
+  <button wx:for="{{tabs}}" wx:key="path" class="nav-item {{selected === index ? 'active' : ''}}" data-index="{{index}}" bindtap="switchTab" aria-label="{{item.text}}{{selected === index ? '，当前页面' : ''}}">
+    <image class="nav-icon" src="{{item.icon}}" mode="aspectFit"></image><text>{{item.text}}</text>
+  </button>
+</view>

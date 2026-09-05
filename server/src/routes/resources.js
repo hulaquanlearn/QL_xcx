@@ -9,6 +9,7 @@ const {
 } = require('../media');
 const { checkText } = require('../content-safety');
 const { requireCoupleId, requireCoupleTask } = require('./couple-access');
+const { albumSelection, listOptions } = require('../services/resource-list');
 const {
   attachNormalizedDishes,
   removeOrphanDishes,
@@ -29,12 +30,14 @@ const definitions = {
     join: 'LEFT JOIN tasks linked_task ON linked_task.id=r.task_id AND linked_task.couple_id=r.couple_id',
     select: ',linked_task.title task_title',
     fields: { imgUrl: 'image_url', fileID: 'storage_key', description: 'description', date: 'photo_date', taskId: 'task_id' },
-    extras: row => ({ taskTitle: row.task_title || '' })
+    extras: row => ({ taskTitle: row.task_title || '', favorite: Boolean(row.is_favorite) })
   },
   tasks: {
     table: 'tasks',
     order: 'created_at DESC',
-    fields: { title: 'title', description: 'description', status: 'status', completed: 'status', completedAt: 'completed_at' }
+    select: ',(SELECT COUNT(*) FROM albums task_photo WHERE task_photo.task_id=r.id AND task_photo.couple_id=r.couple_id) photo_count',
+    fields: { title: 'title', description: 'description', status: 'status', completed: 'status', completedAt: 'completed_at' },
+    extras: row => ({ photoCount: Number(row.photo_count || 0) })
   },
   menus: {
     table: 'menus',
@@ -200,6 +203,15 @@ function normalizeBody(resource, body, coupleId) {
     assertTextLength(normalized.description, 500, '纪念日说明不能超过500字');
   }
   if (resource === 'tasks') {
+    // Completion timestamps belong to the server, never to client clocks.
+    delete normalized.completedAt;
+    if (normalized.completed !== undefined && typeof normalized.completed !== 'boolean') {
+      throw new ApiError(400, '清单完成状态无效');
+    }
+    if (normalized.completed !== undefined && normalized.status !== undefined
+      && normalized.status !== (normalized.completed ? 'completed' : 'pending')) {
+      throw new ApiError(400, '清单完成状态不一致');
+    }
     if (normalized.title !== undefined) {
       normalized.title = String(normalized.title).trim();
       if (!normalized.title || normalized.title.length > 150) throw new ApiError(400, '清单标题无效');
@@ -320,43 +332,40 @@ router.get('/:resource', asyncHandler(async (req, res) => {
   const resource = req.params.resource;
   const definitionValue = definition(resource);
   const coupleId = ensureCouple(req);
-  const pagedAlbum = resource === 'album' && String(req.query.paged || '') === '1';
-  const limitMaximum = pagedAlbum ? 50 : 200;
-  const limit = Math.min(Math.max(Number(req.query.limit) || (pagedAlbum ? 30 : 100), 1), limitMaximum);
-  const cursor = pagedAlbum && /^\d+$/.test(String(req.query.cursor || ''))
-    ? String(req.query.cursor)
-    : '';
-  const conditions = ['r.couple_id=?'];
-  const params = [coupleId];
-  if (cursor) {
-    conditions.push('r.id<?');
-    params.push(cursor);
-  }
-  if (resource === 'album' && String(req.query.linkedTasks || '') === '1') {
-    conditions.push('r.task_id IS NOT NULL');
-  }
-  const requestedRows = pagedAlbum ? limit + 1 : limit;
+  const { paged, limit, conditions, params } = listOptions(resource, req.query, coupleId, req.userRow.id);
+  const favorite = resource === 'album' ? albumSelection(req.userRow.id) : { sql: '', params: [] };
+  const requestedRows = paged ? limit + 1 : limit;
   let [rows] = await pool.query(
-    `SELECT r.*,u.name author_name${definitionValue.select || ''}
+    `SELECT r.*,u.name author_name${definitionValue.select || ''}${favorite.sql}
      FROM ${definitionValue.table} r
      JOIN users u ON u.id=r.author_id
      ${definitionValue.join || ''}
      WHERE ${conditions.join(' AND ')}
-     ORDER BY ${pagedAlbum ? 'r.id DESC' : definitionValue.order}
+     ORDER BY ${paged ? 'r.id DESC' : definitionValue.order}
      LIMIT ?`,
-    [...params, requestedRows]
+    [...favorite.params, ...params, requestedRows]
   );
   if (resource === 'menus') rows = await attachNormalizedDishes(pool, coupleId, rows);
-  if (pagedAlbum) {
+  if (paged) {
     const hasMore = rows.length > limit;
     const pageRows = hasMore ? rows.slice(0, limit) : rows;
     const items = pageRows.map(row => output(row, definitionValue));
+    let counts;
+    if (resource === 'tasks') {
+      const [totals] = await pool.query('SELECT status,COUNT(*) count FROM tasks WHERE couple_id=? GROUP BY status', [coupleId]);
+      counts = { all: 0, pending: 0, completed: 0 };
+      for (const row of totals) {
+        counts[row.status] = Number(row.count);
+        counts.all += Number(row.count);
+      }
+    }
     return res.json({
       success: true,
       data: {
         items,
         hasMore,
-        nextCursor: hasMore && pageRows.length ? String(pageRows[pageRows.length - 1].id) : ''
+        nextCursor: hasMore && pageRows.length ? String(pageRows[pageRows.length - 1].id) : '',
+        ...(counts ? { counts } : {})
       }
     });
   }
@@ -366,14 +375,15 @@ router.get('/:resource', asyncHandler(async (req, res) => {
 router.get('/:resource/:id', asyncHandler(async (req, res) => {
   const definitionValue = definition(req.params.resource);
   const coupleId = ensureCouple(req);
+  const favorite = req.params.resource === 'album' ? albumSelection(req.userRow.id) : { sql: '', params: [] };
   let [rows] = await pool.query(
-    `SELECT r.*,u.name author_name${definitionValue.select || ''}
+    `SELECT r.*,u.name author_name${definitionValue.select || ''}${favorite.sql}
      FROM ${definitionValue.table} r
      JOIN users u ON u.id=r.author_id
      ${definitionValue.join || ''}
      WHERE r.id=? AND r.couple_id=?
      LIMIT 1`,
-    [req.params.id, coupleId]
+    [...favorite.params, req.params.id, coupleId]
   );
   if (!rows[0]) throw new ApiError(404, '数据不存在');
   if (req.params.resource === 'menus') rows = await attachNormalizedDishes(pool, coupleId, rows);
@@ -447,6 +457,7 @@ router.post('/:resource', asyncHandler(async (req, res) => {
     await ensureMenuNameAvailable(pool, coupleId, body.name);
   }
   const data = input(body, definitionValue);
+  if (resource === 'tasks') data.completed_at = data.status === 'completed' ? new Date() : null;
   if (resource === 'orders') {
     delete data.accepted_by;
     delete data.accepted_by_user_id;
@@ -556,13 +567,22 @@ router.patch('/:resource/:id', asyncHandler(async (req, res) => {
       connection.release();
     }
   } else {
+    const assignments = keys.map(key => `${key}=?`);
+    if (resource === 'tasks' && data.status !== undefined) {
+      // MySQL evaluates assignments left-to-right: read the old status first.
+      assignments.unshift(data.status === 'completed'
+        ? "completed_at=IF(status='completed',completed_at,CURRENT_TIMESTAMP)"
+        : 'completed_at=NULL');
+    }
+    const orderGuard = resource === 'orders' ? " AND author_id=? AND status='pending'" : '';
     [result] = await pool.query(
       `UPDATE ${definitionValue.table}
-       SET ${keys.map(key => `${key}=?`).join(',')}
-       WHERE id=? AND couple_id=?`,
-      [...keys.map(key => data[key]), req.params.id, coupleId]
+       SET ${assignments.join(',')}
+       WHERE id=? AND couple_id=?${orderGuard}`,
+      [...keys.map(key => data[key]), req.params.id, coupleId, ...(resource === 'orders' ? [req.userRow.id] : [])]
     );
   }
+  if (resource === 'orders' && !result.affectedRows) throw new ApiError(409, '点单状态已变化，请刷新后重试');
   if (!result.affectedRows) throw new ApiError(404, '数据不存在');
   if (resource === 'countdown' && data.is_anniversary === 1) {
     await pool.query('UPDATE countdowns SET is_anniversary=0 WHERE couple_id=? AND id<>?', [coupleId, req.params.id]);
@@ -589,10 +609,12 @@ router.delete('/:resource/:id', asyncHandler(async (req, res) => {
       : '对方已接单，请等待做好后再处理');
   }
   const oldMediaKeys = mediaKeysFromRow(resource, beforeRows[0]);
+  const orderGuard = resource === 'orders' ? " AND author_id=? AND status IN ('pending','completed')" : '';
   const [result] = await pool.query(
-    `DELETE FROM ${definitionValue.table} WHERE id=? AND couple_id=?`,
-    [req.params.id, coupleId]
+    `DELETE FROM ${definitionValue.table} WHERE id=? AND couple_id=?${orderGuard}`,
+    [req.params.id, coupleId, ...(resource === 'orders' ? [req.userRow.id] : [])]
   );
+  if (resource === 'orders' && !result.affectedRows) throw new ApiError(409, '点单状态已变化，请刷新后重试');
   if (!result.affectedRows) throw new ApiError(404, '数据不存在');
   if (resource === 'menus') await removeOrphanDishes(pool, coupleId);
   await removeMediaKeysIfUnreferenced(pool, oldMediaKeys);

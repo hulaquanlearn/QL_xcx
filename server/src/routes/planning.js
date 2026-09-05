@@ -5,6 +5,7 @@ const { checkText } = require('../content-safety');
 const { ApiError, asyncHandler } = require('../utils');
 const { requireCoupleId } = require('./couple-access');
 const { attachNormalizedDishes } = require('../services/menu-store');
+const { buildIngredientItems, ingredientKey, mergeShoppingPlan, splitIngredients } = require('../services/shopping-plan');
 
 const router = express.Router();
 const mealTypes = new Set(['breakfast', 'lunch', 'dinner', 'snack']);
@@ -46,14 +47,6 @@ function normalizeEntries(value) {
   });
 }
 
-function splitIngredients(value) {
-  return String(value || '')
-    .split(/[\n；;、]+/)
-    .map(item => item.replace(/^[-•·\s]+/, '').trim())
-    .filter(Boolean)
-    .slice(0, 80);
-}
-
 router.use(requireAuth);
 
 router.get('/week', asyncHandler(async (req, res) => {
@@ -76,9 +69,10 @@ router.get('/week', asyncHandler(async (req, res) => {
       [coupleId, start]
     )
   ]);
-  const menuRows = plans.map(row => ({ id: row.menu_id, dishes: row.dishes }));
+  const menuRows = plans.map(row => ({ id: row.menu_id, name: row.menu_name, dishes: row.dishes }));
   const hydrated = await attachNormalizedDishes(pool, coupleId, menuRows);
   const dishesByMenu = new Map(hydrated.map(row => [String(row.id), row.dishes]));
+  const sourcesByName = new Map(buildIngredientItems(hydrated).map(item => [ingredientKey(item.name), item.sources]));
   res.json({
     success: true,
     data: {
@@ -96,6 +90,7 @@ router.get('/week', asyncHandler(async (req, res) => {
         name: row.name,
         quantity: row.quantity || '',
         source: row.source,
+        sources: sourcesByName.get(ingredientKey(row.name)) || [],
         checked: Boolean(row.checked)
       }))
     }
@@ -110,6 +105,7 @@ router.put('/week', asyncHandler(async (req, res) => {
   const connection = await pool.getConnection();
   try {
     await connection.beginTransaction();
+    await connection.query('SELECT id FROM couples WHERE id=? FOR UPDATE', [coupleId]);
     if (menuIds.length) {
       const placeholders = menuIds.map(() => '?').join(',');
       const [menus] = await connection.query(
@@ -142,40 +138,20 @@ router.put('/week', asyncHandler(async (req, res) => {
 router.post('/week/shopping/generate', asyncHandler(async (req, res) => {
   const coupleId = requireCoupleId(req);
   const start = weekStart(req.body?.weekStart);
-  const [menuRows] = await pool.query(
-    `SELECT DISTINCT m.id,m.dishes
-     FROM weekly_menu_plans p
-     JOIN menus m ON m.id=p.menu_id AND m.couple_id=p.couple_id
-     WHERE p.couple_id=? AND p.week_start=?`,
-    [coupleId, start]
-  );
-  const hydrated = await attachNormalizedDishes(pool, coupleId, menuRows);
-  const names = [];
-  const seen = new Set();
-  hydrated.flatMap(menu => menu.dishes || []).flatMap(dish => splitIngredients(dish.ingredients)).forEach(name => {
-    const key = name.toLocaleLowerCase();
-    if (!seen.has(key) && names.length < 120) {
-      seen.add(key);
-      names.push(name.slice(0, 150));
-    }
-  });
   const connection = await pool.getConnection();
   try {
     await connection.beginTransaction();
-    await connection.query(
-      `DELETE FROM shopping_items
-       WHERE couple_id=? AND week_start=? AND source='plan'`,
+    await connection.query('SELECT id FROM couples WHERE id=? FOR UPDATE', [coupleId]);
+    const [menuRows] = await connection.query(
+      `SELECT DISTINCT m.id,m.name,m.dishes FROM weekly_menu_plans p
+       JOIN menus m ON m.id=p.menu_id AND m.couple_id=p.couple_id
+       WHERE p.couple_id=? AND p.week_start=?`,
       [coupleId, start]
     );
-    for (const name of names) {
-      await connection.query(
-        `INSERT INTO shopping_items(couple_id,author_id,week_start,name,source)
-         VALUES(?,?,?,?,"plan")`,
-        [coupleId, req.userRow.id, start, name]
-      );
-    }
+    const hydrated = await attachNormalizedDishes(connection, coupleId, menuRows);
+    const summary = await mergeShoppingPlan(connection, coupleId, req.userRow.id, start, buildIngredientItems(hydrated));
     await connection.commit();
-    res.status(201).json({ success: true, data: { count: names.length } });
+    res.status(201).json({ success: true, data: summary });
   } catch (error) {
     await connection.rollback();
     throw error;

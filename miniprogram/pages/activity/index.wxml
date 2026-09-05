@@ -2,11 +2,20 @@
   <view class="page-intro"><text class="page-kicker">TOGETHER LIST</text><text class="page-title">一起完成的事</text><text class="page-desc">小计划不必隆重，记下来就更容易发生。</text></view>
 
   <view class="view-switch"><view class="view-item {{viewMode === 'list' ? 'active' : ''}}" bindtap="switchView" data-view="list">共同清单</view><view class="view-item {{viewMode === 'timeline' ? 'active' : ''}}" bindtap="switchView" data-view="timeline">共同时间线</view></view>
+  <view wx:if="{{photoUploads.length}}" class="task-upload-panel">
+    <text class="section-title">{{uploadTaskTitle}} · 成果照片</text>
+    <view wx:for="{{photoUploads}}" wx:key="id" class="task-upload-row">
+      <image src="{{item.path}}" mode="aspectFit" class="task-upload-preview"></image>
+      <view class="task-upload-copy"><text>{{uploadLabels[item.status]}}</text><text wx:if="{{item.error}}" class="task-upload-error">{{item.error}}</text></view>
+      <button wx:if="{{(item.status === 'failed' || item.status === 'paused') && !item.rejected}}" data-id="{{item.id}}" bindtap="retryTaskPhoto">重试</button>
+    </view>
+    <button class="list-load-more" bindtap="closePhotoQueue" disabled="{{!!uploadingTaskId}}">收起记录</button>
+  </view>
 
   <block wx:if="{{viewMode === 'list'}}">
 
   <view class="filter-card">
-    <view class="filter-item {{currentFilter === 'all' ? 'active' : ''}}" bindtap="switchFilter" data-filter="all"><text class="filter-count">{{tasksList.length}}</text><text class="filter-label">全部</text></view>
+    <view class="filter-item {{currentFilter === 'all' ? 'active' : ''}}" bindtap="switchFilter" data-filter="all"><text class="filter-count">{{totalCount}}</text><text class="filter-label">全部</text></view>
     <view class="filter-item {{currentFilter === 'pending' ? 'active' : ''}}" bindtap="switchFilter" data-filter="pending"><text class="filter-count">{{pendingCount}}</text><text class="filter-label">待完成</text></view>
     <view class="filter-item {{currentFilter === 'completed' ? 'active' : ''}}" bindtap="switchFilter" data-filter="completed"><text class="filter-count">{{completedCount}}</text><text class="filter-label">已完成</text></view>
   </view>
@@ -34,17 +43,29 @@
   <view wx:if="{{filteredTasksList.length === 0 && !loading}}" class="empty-state"><view class="empty-icon">＋</view><text class="empty-title">{{currentFilter === 'all' ? '清单还是空的' : currentFilter === 'completed' ? '还没有完成记录' : '暂时没有待办'}}</text><text class="empty-desc">{{currentFilter === 'all' ? '添加一件最近想一起完成的小事' : '切换分类看看其他内容'}}</text></view>
   <view class="floating-add-btn" bindtap="addTask"><text>＋</text></view>
   <view wx:if="{{loading}}" class="loading-state"><view class="loading-spinner"></view><text class="loading-text">正在加载</text></view>
+  <button wx:if="{{tasksError}}" class="list-load-more" bindtap="getTasksList">{{tasksError}} · 重试</button>
+  <button wx:elif="{{tasksHasMore && !loading}}" class="list-load-more" bindtap="moreTasks">加载更多事项</button>
+  <text wx:elif="{{tasksList.length && !loading}}" class="list-end">已显示全部事项</text>
   </block>
 
   <block wx:else>
     <view class="timeline-list">
       <view wx:for="{{timeline}}" wx:key="id" class="timeline-event">
         <view class="timeline-rail"><view class="timeline-dot"></view><view class="timeline-line"></view></view>
-        <view class="timeline-card"><view class="timeline-head"><text class="timeline-type">{{item.type === 'task' ? '一起完成' : item.type === 'order' ? '一起吃饭' : '共同相册'}}</text><text class="timeline-date">{{item.dateText}}</text></view><text class="timeline-title">{{item.title}}</text><text wx:if="{{item.description}}" class="timeline-desc">{{item.description}}</text><view wx:if="{{item.imageUrls.length}}" class="timeline-photos"><image wx:for="{{item.imageUrls}}" wx:key="*this" wx:for-item="photo" class="timeline-photo" src="{{photo}}" mode="aspectFill" bindtap="previewTimeline" data-id="{{item.id}}" data-url="{{photo}}"></image></view><text class="timeline-author">{{item.author}}</text></view>
+        <view class="timeline-card">
+          <view class="timeline-head"><text class="timeline-type">{{item.type === 'task' ? '一起完成' : item.type === 'order' ? '一起吃饭' : '共同相册'}}</text><text class="timeline-date">{{item.dateText}}</text></view>
+          <text wx:if="{{item.timeEstimated}}" class="timeline-desc">完成时间未记录 · 以上为记录创建日期</text>
+          <text class="timeline-title">{{item.title}}</text><text wx:if="{{item.description}}" class="timeline-desc">{{item.description}}</text>
+          <view wx:if="{{item.imageUrls.length}}" class="timeline-photos"><image wx:for="{{item.imageUrls}}" wx:key="*this" wx:for-item="photo" class="timeline-photo" src="{{photo}}" mode="aspectFill" bindtap="previewTimeline" data-id="{{item.id}}" data-url="{{photo}}"></image></view>
+          <text class="timeline-author">{{item.author}}</text>
+        </view>
       </view>
     </view>
     <view wx:if="{{!timeline.length && !timelineLoading}}" class="empty-state"><view class="empty-icon">·</view><text class="empty-title">时间线还没有内容</text><text class="empty-desc">完成清单、点单或上传照片后，会自动汇集在这里。</text></view>
     <view wx:if="{{timelineLoading}}" class="loading-state"><view class="loading-spinner"></view><text class="loading-text">正在整理共同回忆</text></view>
+    <button wx:if="{{timelineError}}" class="list-load-more" bindtap="loadTimeline">{{timelineError}} · 重试</button>
+    <button wx:elif="{{timelineHasMore && !timelineLoading}}" class="list-load-more" bindtap="moreTimeline">加载更早的回忆</button>
+    <text wx:elif="{{timeline.length && !timelineLoading}}" class="list-end">已经到底了</text>
   </block>
 
   <view wx:if="{{showModal}}" class="modal-overlay" bindtap="closeModal"><view class="modal-content" catchtap="preventBubble"><text class="modal-kicker">{{editingTaskId ? 'EDIT ITEM' : 'NEW ITEM'}}</text><text class="modal-title">{{modalTitle}}</text><input class="modal-input" type="text" placeholder="例如：周末去看展" value="{{modalValue}}" focus="{{showModal}}" bindinput="onModalInput"/><view class="modal-footer"><view class="modal-btn cancel" bindtap="closeModal">取消</view><view class="modal-btn confirm" bindtap="confirmModal">保存</view></view></view></view>

@@ -1,11 +1,9 @@
-.period-page { padding: 32rpx 28rpx calc(40rpx + env(safe-area-inset-bottom)); }
+.period-page { padding: 32rpx 28rpx calc(160rpx + env(safe-area-inset-bottom)); }
 .eyebrow,.title,.subtitle,.card-label,.status-title,.muted,.estimate,.legend,.record-date,.detail,.disclaimer,.field-label { display:block; }
 .eyebrow { color:#93796C;font-size:22rpx;letter-spacing:4rpx;margin-top:10rpx; }
 .title { font-size:44rpx;font-weight:650;margin:12rpx 0; }
 .subtitle,.muted { color:#747872;font-size:24rpx;line-height:1.65; }
-.tabs { display:flex;background:#EAE7E0;padding:8rpx;border-radius:22rpx;margin:32rpx 0 24rpx; }
-.tab { flex:1;min-height:76rpx;font-size:27rpx;color:#686D66; }
-.tab.selected { background:white;color:#302F2C; }
+.period-page > .subtitle { margin-bottom:28rpx; }
 .summary-card,.panel,.record { background:#FFF;border:1rpx solid #E8E3DB;border-radius:28rpx;padding:28rpx;margin-bottom:22rpx; }
 .summary-card { background:#F0E9E2; }
 .card-label { color:#806B60;font-size:24rpx; }

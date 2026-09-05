@@ -28,7 +28,7 @@ Page({
   // 检查登录状态
   checkLogin: function() {
     if (!app.globalData.userId || !app.globalData.coupleId) {
-      wx.redirectTo({ url: '/pages/index/index' });
+      wx.reLaunch({ url: '/pages/index/index' });
       return false;
     }
     return true;

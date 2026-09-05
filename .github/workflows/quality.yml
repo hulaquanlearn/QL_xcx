@@ -1,0 +1,25 @@
+name: Project quality
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - name: Install server dependencies
+        run: npm ci --prefix server --omit=dev
+      - name: Test and verify release contents
+        shell: pwsh
+        run: ./scripts/build-release.ps1

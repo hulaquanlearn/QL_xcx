@@ -6,12 +6,15 @@ const auth = require('../../services/auth')
 const avatarService = require('../../services/avatar')
 const mediaService = require('../../services/media')
 const dateUtils = require('../../utils/date')
+const { syncTabBar } = require('../../services/navigation')
+const { selectHomeAnniversary } = require('../../utils/home')
 
 Page({
   data: {
     isLoggedIn: false,
     coupleId: '',
     loveDays: 0,
+    daysUnit: '',
     userAvatar: '',
     partnerAvatar: '',
     userInitial: '我',
@@ -22,6 +25,7 @@ Page({
     account: '',
     password: '',
     uploading: false,
+    avatarStatus: '',
     loggingIn: false
   },
   
@@ -38,6 +42,7 @@ onLoad: function() {
   checkLogin: function() {
     if (!auth.getToken()) {
       this.setData({ isLoggedIn: false, coupleId: '' });
+      syncTabBar(this, 0, false);
       return;
     }
     app.autoLogin((success, _user, error) => {
@@ -47,12 +52,14 @@ onLoad: function() {
           isLoggedIn: useCachedSession,
           coupleId: useCachedSession ? (app.globalData.coupleId || '') : ''
         });
+        syncTabBar(this, 0, useCachedSession);
         if (useCachedSession && error) {
           wx.showToast({ title: '网络暂时不可用，登录状态已保留', icon: 'none' });
         }
         return;
       }
       this.setData({ isLoggedIn: true, coupleId: app.globalData.coupleId });
+      syncTabBar(this, 0, true);
       if (app.globalData.coupleId) this.loadData();
     });
   },
@@ -95,6 +102,7 @@ onLoad: function() {
       app.globalData.manualLogout = false;
       app.saveLoginStatus({ userId: user.id, coupleId: user.coupleId, userInfo: user, partnerInfo: partner || null });
       this.setData({ isLoggedIn: true, coupleId: user.coupleId });
+      syncTabBar(this, 0, true);
       wx.showToast({ title: '登录成功', icon: 'success' });
       if (user.coupleId) this.loadData();
     }).catch(err => {
@@ -117,15 +125,17 @@ onLoad: function() {
     const coupleId = this.data.coupleId || app.globalData.coupleId;
     if (!coupleId) return;
 
+    const sequence = this._countdownSequence = (this._countdownSequence || 0) + 1;
     return api.list('countdown', { limit: 200 }).then(rows => {
+      if (sequence !== this._countdownSequence || coupleId !== app.globalData.coupleId) return;
       const countdownList = rows.map(item => ({
         ...item,
         dateText: dateUtils.getDateStatus(item.date).text
       }));
-      const anniversary = countdownList.find(item => item.isAnniversary) || countdownList[0] || null;
-      const pinnedAnniversary = countdownList.find(item => item.isTop) || countdownList[0] || null;
+      const { pinnedAnniversary, loveDays, daysUnit } = selectHomeAnniversary(countdownList);
       this.setData({
-        loveDays: anniversary ? this.calculateDaysDiff(anniversary.date) : 0,
+        loveDays,
+        daysUnit,
         countdownList,
         pinnedAnniversary
       });
@@ -185,15 +195,15 @@ onLoad: function() {
   
   // 上传头像到情侣空间服务器
   uploadAvatarToServer: function(tempFilePath) {
-    this.setData({ uploading: true });
-    avatarService.upload(tempFilePath).then(() => {
+    this.setData({ uploading: true, avatarStatus: '正在处理头像…' });
+    avatarService.upload(tempFilePath, { onStatus: event => this.setData({ avatarStatus: event.status === 'moderating' ? '头像审核中，请稍候…' : '头像上传中…' }) }).then(() => {
       return this.loadAvatars();
     }).then(() => {
-      this.setData({ uploading: false });
+      this.setData({ uploading: false, avatarStatus: '' });
       wx.showToast({ title: '头像已同步', icon: 'success' });
     }).catch(err => {
       console.error('上传头像失败：', err);
-      this.setData({ uploading: false });
+      this.setData({ uploading: false, avatarStatus: '' });
       wx.showToast({ title: err.message || '上传失败', icon: 'none' });
     });
   },
@@ -204,15 +214,20 @@ onLoad: function() {
     
     if (!coupleId) return;
     
-    api.list('album', { limit: 9 }).then(rows => {
+    const sequence = this._albumSequence = (this._albumSequence || 0) + 1;
+    return api.list('album', { limit: 9 }).then(rows => {
+      if (sequence !== this._albumSequence || coupleId !== app.globalData.coupleId) return;
       const keys = rows.map(item => item.fileID || item.imgUrl).filter(Boolean);
-      return mediaService.resolveFiles(keys).then(urls => {
-        this.setData({
-          albumList: rows.map(item => {
-            const key = item.fileID || item.imgUrl;
-            return { ...item, storageKey: key, imgUrl: urls[key] || '' };
-          })
-        });
+      this.setData({ albumList: rows.map(item => ({ ...item, storageKey: item.fileID || item.imgUrl, imgUrl: '' })) });
+      return mediaService.resolveFiles(keys, {
+        variant: 'thumbnail',
+        isCancelled: () => sequence !== this._albumSequence || coupleId !== app.globalData.coupleId,
+        onResolved: (key, url) => {
+          if (sequence !== this._albumSequence || coupleId !== app.globalData.coupleId) return;
+          const patch = {};
+          this.data.albumList.forEach((item, index) => { if (item.storageKey === key) patch[`albumList[${index}].imgUrl`] = url; });
+          this.setData(patch);
+        }
       });
     }).catch(err => {
       console.error('获取相册失败：', err);
@@ -221,6 +236,7 @@ onLoad: function() {
 
   // 页面显示时刷新数据
   onShow: function() {
+    syncTabBar(this, 0, this.data.isLoggedIn);
     if (this.data.isLoggedIn) {
       this.loadData();
     }
@@ -253,11 +269,11 @@ onLoad: function() {
 
   // 跳转到我的
   goToMine: function() {
-    wx.navigateTo({ url: '/pages/mine/index' });
+    wx.switchTab({ url: '/pages/mine/index' });
   },
 
   goToPeriod: function() {
-    wx.navigateTo({ url: '/pages/period/index' });
+    wx.switchTab({ url: '/pages/period/index' });
   },
 
   // 图片加载失败

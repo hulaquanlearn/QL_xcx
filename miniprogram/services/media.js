@@ -7,6 +7,11 @@ const avatarKeyPattern = /^server-avatar:([a-f0-9]{32}\.(?:jpg|png|webp))$/;
 const resolvedFileCache = new Map();
 const downloadPromiseCache = new Map();
 const MAX_CACHE_ENTRIES = 240;
+const MAX_CONCURRENT_DOWNLOADS = 4;
+const downloadQueue = [];
+const activeDownloads = new Set();
+let runningDownloads = 0;
+let cacheGeneration = 0;
 const MAX_UPLOAD_BYTES = 3.5 * 1024 * 1024;
 const compressionProfiles = {
   avatar: {
@@ -128,10 +133,17 @@ function readBase64(filePath) {
   });
 }
 
-function upload(filePath, purpose) {
+function upload(filePath, purpose, options = {}) {
   return compress(filePath, purpose)
     .then(readBase64)
-    .then(data => api.uploadMediaFile({ purpose, data }));
+    .then(data => {
+      if (options.isCancelled && options.isCancelled()) {
+        const error = new Error('上传已暂停');
+        error.cancelled = true;
+        throw error;
+      }
+      return api.uploadMediaFile({ purpose, data }, options);
+    });
 }
 
 function parseMediaKey(value) {
@@ -144,38 +156,72 @@ function parseAvatarKey(value) {
   return match ? { filename: match[1] } : null;
 }
 
-function downloadAuthenticated(url) {
+function downloadAuthenticated(url, token) {
   return new Promise((resolve, reject) => {
-    wx.downloadFile({
+    const entry = {};
+    activeDownloads.add(entry);
+    const finish = callback => value => {
+      activeDownloads.delete(entry);
+      callback(value);
+    };
+    entry.task = wx.downloadFile({
       url,
-      header: { Authorization: `Bearer ${auth.getToken()}` },
+      header: { Authorization: `Bearer ${token}` },
       timeout: config.requestTimeout,
-      success: result => result.statusCode === 200
-        ? resolve(result.tempFilePath)
-        : reject(new Error(`图片下载失败（${result.statusCode}）`)),
-      fail: reject
+      success: finish(result => {
+        if (auth.getToken() !== token) return reject(new Error('登录状态已变化'));
+        return result.statusCode === 200
+          ? resolve(result.tempFilePath)
+          : reject(new Error(`图片下载失败（${result.statusCode}）`));
+      }),
+      fail: finish(reject)
     });
   });
 }
 
-function downloadStoredFile(key) {
+function pumpDownloads() {
+  while (runningDownloads < MAX_CONCURRENT_DOWNLOADS && downloadQueue.length) {
+    const job = downloadQueue.shift();
+    if (job.generation !== cacheGeneration || job.scope !== auth.getToken()) {
+      job.reject(new Error('登录状态已变化'));
+      continue;
+    }
+    runningDownloads += 1;
+    Promise.resolve().then(() => {
+      if (job.generation !== cacheGeneration || job.scope !== auth.getToken()) throw new Error('登录状态已变化');
+      return job.start();
+    }).then(job.resolve, job.reject).finally(() => {
+      runningDownloads -= 1;
+      pumpDownloads();
+    });
+  }
+}
+
+function queueDownload(start, scope) {
+  return new Promise((resolve, reject) => {
+    downloadQueue.push({ start, scope, generation: cacheGeneration, resolve, reject });
+    pumpDownloads();
+  });
+}
+
+function downloadStoredFile(key, token, variant) {
   const media = parseMediaKey(key);
   if (media) {
     return downloadAuthenticated(
-      `${config.apiBaseUrl}/media/file/${encodeURIComponent(media.coupleId)}/${encodeURIComponent(media.filename)}`
+      `${config.apiBaseUrl}/media/file/${encodeURIComponent(media.coupleId)}/${encodeURIComponent(media.filename)}${variant === 'thumbnail' ? '?variant=thumbnail' : ''}`, token
     );
   }
   const avatar = parseAvatarKey(key);
   if (avatar) {
     return downloadAuthenticated(
-      `${config.apiBaseUrl}/avatars/file/${encodeURIComponent(avatar.filename)}`
+      `${config.apiBaseUrl}/avatars/file/${encodeURIComponent(avatar.filename)}`, token
     );
   }
   return Promise.resolve('');
 }
 
-function scopedCacheKey(key, scope) {
-  return `${scope || 'anonymous'}:${key}`;
+function scopedCacheKey(key, scope, variant) {
+  return `${scope || 'anonymous'}:${variant || 'original'}:${key}`;
 }
 
 function cacheResolved(key, value) {
@@ -185,34 +231,44 @@ function cacheResolved(key, value) {
   }
 }
 
-function resolveStoredFile(key, scope) {
-  const cacheKey = scopedCacheKey(key, scope);
+function resolveStoredFile(key, scope, variant) {
+  const cacheKey = scopedCacheKey(key, scope, variant);
   const cached = resolvedFileCache.get(cacheKey);
   if (cached) return Promise.resolve(cached);
   if (downloadPromiseCache.has(cacheKey)) return downloadPromiseCache.get(cacheKey);
 
-  const promise = downloadStoredFile(key)
+  const generation = cacheGeneration;
+  const promise = queueDownload(() => downloadStoredFile(key, scope, variant), scope)
     .then(filePath => {
-      if (filePath) cacheResolved(cacheKey, filePath);
+      if (filePath && generation === cacheGeneration && auth.getToken() === scope) cacheResolved(cacheKey, filePath);
       return filePath;
     })
-    .finally(() => downloadPromiseCache.delete(cacheKey));
+    .finally(() => {
+      if (downloadPromiseCache.get(cacheKey) === promise) downloadPromiseCache.delete(cacheKey);
+    });
   downloadPromiseCache.set(cacheKey, promise);
   return promise;
 }
 
-function resolveFiles(values) {
+function resolveFiles(values, options = {}) {
   const keys = Array.from(new Set((values || []).filter(Boolean)));
-  const scope = auth.getToken() || 'anonymous';
+  const scope = auth.getToken();
+  const variant = options.variant === 'thumbnail' ? 'thumbnail' : 'original';
   const output = {};
   const downloads = [];
+  const publish = (key, value) => {
+    output[key] = value;
+    if (auth.getToken() === scope && !(options.isCancelled && options.isCancelled()) && options.onResolved) {
+      options.onResolved(key, value);
+    }
+  };
   keys.forEach(key => {
     if (parseMediaKey(key) || parseAvatarKey(key)) {
-      downloads.push(resolveStoredFile(key, scope)
-        .then(filePath => { output[key] = filePath; })
-        .catch(() => { output[key] = ''; }));
+      downloads.push(resolveStoredFile(key, scope, variant)
+        .then(filePath => publish(key, filePath))
+        .catch(() => publish(key, '')));
     } else {
-      output[key] = '';
+      publish(key, '');
     }
   });
   return Promise.all(downloads).then(() => output);
@@ -224,7 +280,17 @@ function remove(key) {
   return api.deleteMediaFile(parsed.coupleId, parsed.filename).catch(() => {});
 }
 
+function forgetFile(key, options = {}) {
+  const variant = options.variant === 'thumbnail' ? 'thumbnail' : 'original';
+  resolvedFileCache.delete(scopedCacheKey(key, auth.getToken(), variant));
+}
+
 function clearCaches() {
+  cacheGeneration += 1;
+  downloadQueue.splice(0).forEach(job => job.reject(new Error('登录状态已变化')));
+  activeDownloads.forEach(entry => {
+    if (entry.task && typeof entry.task.abort === 'function') entry.task.abort();
+  });
   resolvedFileCache.clear();
   downloadPromiseCache.clear();
 }
@@ -237,5 +303,6 @@ module.exports = {
   parseAvatarKey,
   readBase64,
   compress,
+  forgetFile,
   clearCaches
 };

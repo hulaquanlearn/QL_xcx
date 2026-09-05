@@ -1,21 +1,56 @@
 page { background: #F6F4EF; }
 .album-page { padding-bottom: calc(150rpx + env(safe-area-inset-bottom)); }
+.album-page button::after { border: 0; }
 .page-intro { padding: 24rpx 4rpx 28rpx; }
-.page-kicker { display: block; color: #A27C6E; font-size: 18rpx; font-weight: 650; letter-spacing: 4rpx; }
+.page-kicker { display: block; color: #956D5F; font-size: 20rpx; font-weight: 650; letter-spacing: 4rpx; }
 .page-title { display: block; margin-top: 10rpx; font-size: 42rpx; font-weight: 700; }
-.page-desc { display: block; margin-top: 10rpx; color: #858981; font-size: 24rpx; }
-.date-section { display: flex; margin: 26rpx 2rpx 14rpx; align-items: baseline; justify-content: space-between; }
-.date-title { color: #4B504A; font-size: 27rpx; font-weight: 650; }
-.date-count { color: #989A93; font-size: 20rpx; }
-.date-photos { display: flex; align-items: flex-start; flex-wrap: wrap; gap: 10rpx; }
-.photo-item { position: relative; width: calc(50% - 5rpx); overflow: hidden; border-radius: 20rpx; background: #E3DFD7; }
+.page-desc { display: block; margin-top: 10rpx; color: #656A64; font-size: 26rpx; line-height: 1.6; }
+.album-filters { display: flex; align-items: center; justify-content: space-between; gap: 16rpx; }
+.album-filters picker { min-width: 0; flex: 1; }
+.month-filter, .favorite-filter { display: flex; min-height: 76rpx; padding: 0 22rpx; align-items: center; justify-content: space-between; gap: 16rpx; border: 1rpx solid #E0DBD3; border-radius: 20rpx; background: #fff; color: #52594F; font-size: 25rpx; line-height: 1.4; }
+.favorite-filter { flex-shrink: 0; margin: 0; }
+.filter-active { background: #2D332F; color: #fff; border-color: #2D332F; }
+.privacy-note { display: block; margin-top: 18rpx; color: #686C64; font-size: 23rpx; line-height: 1.6; }
+.task-filter-note { display: flex; margin-bottom: 20rpx; padding: 12rpx 18rpx; align-items: center; justify-content: space-between; gap: 16rpx; border-radius: 18rpx; background: #EAEDE4; color: #535F4B; font-size: 24rpx; line-height: 1.5; }
+.date-section { display: flex; margin: 30rpx 2rpx 16rpx; align-items: baseline; justify-content: space-between; }
+.date-title { color: #4B504A; font-size: 28rpx; font-weight: 650; }
+.date-count { color: #6B7066; font-size: 24rpx; }
+.date-photos { display: flex; align-items: flex-start; flex-wrap: wrap; gap: 12rpx; }
+.photo-item { position: relative; width: calc(50% - 6rpx); overflow: hidden; border-radius: 20rpx; background: #E7E3DC; }
 .photo-img { display: block; width: 100%; height: auto; }
-.photo-source { position: absolute; right: 8rpx; bottom: 8rpx; left: 8rpx; overflow: hidden; padding: 8rpx 10rpx; border-radius: 10rpx; background: rgba(35,39,35,.68); color: #FFFFFF; font-size: 17rpx; text-overflow: ellipsis; white-space: nowrap; }
+.photo-placeholder { display: flex; min-height: 250rpx; flex-direction: column; align-items: center; justify-content: center; gap: 12rpx; color: #63695E; font-size: 24rpx; }
+.photo-source { position: absolute; right: 8rpx; bottom: 8rpx; left: 8rpx; overflow: hidden; padding: 8rpx 10rpx; border-radius: 10rpx; background: rgba(35,39,35,.75); color: #fff; font-size: 21rpx; text-overflow: ellipsis; white-space: nowrap; }
 .photo-selected .photo-img { opacity: .55; }
-.photo-checkbox { position: absolute; top: 12rpx; right: 12rpx; z-index: 3; display: flex; width: 40rpx; height: 40rpx; align-items: center; justify-content: center; border: 2rpx solid rgba(255,255,255,.9); border-radius: 50%; background: rgba(32,35,31,.24); color: #fff; font-size: 22rpx; }
+.photo-checkbox, .photo-favorite { position: absolute; top: 10rpx; right: 10rpx; z-index: 3; display: flex; width: 70rpx; height: 70rpx; min-height: 70rpx; margin: 0; padding: 0; align-items: center; justify-content: center; border: 2rpx solid rgba(255,255,255,.9); border-radius: 50%; background: rgba(32,35,31,.62); color: #fff; font-size: 38rpx; line-height: 1; }
 .photo-checkbox.checked { background: #2D332F; }
-.action-buttons { position: fixed; right: 28rpx; bottom: calc(24rpx + env(safe-area-inset-bottom)); left: 28rpx; z-index: 20; display: grid; padding: 12rpx; grid-template-columns: 1fr 2fr; gap: 12rpx; border: 1rpx solid #DED9D0; border-radius: 30rpx; background: rgba(255,255,255,.95); box-shadow: 0 16rpx 50rpx rgba(54,49,42,.14); }
-.action-btn { display: flex; height: 78rpx; align-items: center; justify-content: center; border-radius: 20rpx; color: #656A64; font-size: 25rpx; font-weight: 600; line-height: 1.4; text-align: center; }
+.photo-favorite.is-favorite { color: #F6D190; }
+.action-buttons { position: fixed; right: 28rpx; bottom: calc(24rpx + env(safe-area-inset-bottom)); left: 28rpx; z-index: 20; display: grid; padding: 12rpx; grid-template-columns: 1fr 2fr; gap: 12rpx; border: 1rpx solid #DED9D0; border-radius: 28rpx; background: rgba(255,255,255,.97); box-shadow: 0 12rpx 40rpx rgba(54,49,42,.1); }
+.action-btn { display: flex; width: 100%; height: 80rpx; margin: 0; padding: 0 12rpx; align-items: center; justify-content: center; border-radius: 18rpx; background: #F1EEE8; color: #50584D; font-size: 26rpx; font-weight: 600; line-height: 1.4; text-align: center; }
 .upload-btn { background: #2D332F; color: #fff; }
 .batch-delete-btn { position: fixed; right: 32rpx; bottom: calc(138rpx + env(safe-area-inset-bottom)); left: 32rpx; z-index: 21; display: flex; height: 80rpx; align-items: center; justify-content: center; border-radius: 20rpx; background: #A6534B; color: #fff; font-size: 25rpx; line-height: 1.4; text-align: center; }
-.album-page-state { padding: 34rpx 0 10rpx; color: #999B94; font-size: 21rpx; text-align: center; }
+.album-page-state { padding: 34rpx 0 10rpx; color: #686E62; font-size: 24rpx; text-align: center; }
+.upload-panel { margin-top: 24rpx; padding: 24rpx; border: 1rpx solid #DED9D0; border-radius: 24rpx; background: #fff; }
+.upload-panel-heading { display: flex; justify-content: space-between; align-items: center; gap: 12rpx; color: #343C31; font-size: 27rpx; font-weight: 600; }
+.text-button { display: inline-flex; min-height: 64rpx; margin: 0; padding: 0 12rpx; align-items: center; justify-content: center; background: transparent; color: #55664E; font-size: 24rpx; line-height: 1.4; }
+.upload-note { display: block; color: #707469; font-size: 23rpx; line-height: 1.65; }
+.upload-items { margin-top: 14rpx; }
+.upload-item { display: flex; gap: 16rpx; padding: 18rpx 0; align-items: center; border-top: 1rpx solid #EEEAE3; }
+.upload-preview { width: 94rpx; height: 94rpx; flex-shrink: 0; border-radius: 14rpx; background: #E7E3DC; }
+.upload-item-content { flex: 1; min-width: 0; }
+.upload-status { display: block; color: #4B5944; font-size: 25rpx; font-weight: 600; }
+.upload-error { display: block; margin-top: 5rpx; color: #925448; font-size: 23rpx; line-height: 1.5; word-break: break-all; }
+.status-failed { color: #925448; }
+.status-paused { color: #6B7067; }
+.upload-ready { padding: 10rpx; color: #49613D; font-size: 32rpx; }
+.retry-button { display: flex; min-height: 70rpx; margin: 0; padding: 0 18rpx; flex-shrink: 0; align-items: center; justify-content: center; border-radius: 16rpx; background: #ECEFE7; color: #43553B; font-size: 23rpx; line-height: 1.4; }
+.album-error { display: flex; margin: 24rpx 0; padding: 20rpx; align-items: center; justify-content: space-between; gap: 16rpx; border-radius: 20rpx; background: #F1E9E3; color: #925448; font-size: 24rpx; }
+.photo-viewer { position: fixed; top: 0; right: 0; bottom: 0; left: 0; z-index: 200; display: flex; flex-direction: column; background: #141713; color: #fff; }
+.viewer-toolbar { display: flex; min-height: 96rpx; padding: 12rpx 30rpx; align-items: center; justify-content: space-between; flex-shrink: 0; font-size: 27rpx; }
+.viewer-close { display: flex; width: 80rpx; height: 80rpx; margin: 0; padding: 0; align-items: center; justify-content: center; border-radius: 50%; background: rgba(255,255,255,.12); color: #fff; font-size: 48rpx; line-height: 1; }
+.viewer-close::after, .viewer-retry::after { border: 0; }
+.viewer-swiper { flex: 1; min-height: 0; width: 100%; }
+.viewer-slide { position: relative; height: 100%; width: 100%; }
+.viewer-photo { display: block; height: 100%; width: 100%; }
+.viewer-state { position: absolute; right: 30rpx; bottom: 28rpx; left: 30rpx; display: flex; padding: 16rpx 20rpx; align-items: center; justify-content: center; gap: 20rpx; border-radius: 18rpx; background: rgba(20,23,19,.8); color: #fff; font-size: 25rpx; }
+.viewer-retry { display: flex; min-height: 72rpx; margin: 0; padding: 0 24rpx; align-items: center; background: #E9EDE3; color: #354330; font-size: 24rpx; line-height: 1.3; }
+.viewer-hint { display: block; padding: 24rpx 20rpx calc(24rpx + env(safe-area-inset-bottom)); flex-shrink: 0; color: #D0D6CA; font-size: 24rpx; line-height: 1.5; text-align: center; }

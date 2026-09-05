@@ -9,7 +9,7 @@ page {
   --bg-card: #FFFFFF;
   --text-primary: #252824;
   --text-secondary: #656A64;
-  --text-light: #92968F;
+  --text-light: #73796F;
   --text-white: #FFFFFF;
   --border-color: #E7E3DA;
   --shadow-color: rgba(54, 49, 42, .08);
@@ -18,7 +18,7 @@ page {
   --radius-sm: 16rpx;
   --radius-md: 24rpx;
   --radius-lg: 36rpx;
-  --font-xs: 22rpx;
+  --font-xs: 24rpx;
   --font-sm: 24rpx;
   --font-md: 28rpx;
   --font-lg: 34rpx;
@@ -36,6 +36,9 @@ view, text, image, input, textarea, button { box-sizing: border-box; }
 button { display: flex; margin: 0; padding: 0; align-items: center; justify-content: center; background: transparent; line-height: 1.4; text-align: center; border-radius: var(--radius-md); }
 button::after { border: 0; }
 button text { line-height: 1.4; text-align: center; }
+button[disabled] { opacity: .55; }
+.list-load-more { min-height: 88rpx; margin: 24rpx 0; color: var(--text-secondary); background: var(--bg-soft); font-size: var(--font-sm); }
+.list-end { display: block; margin: 24rpx 0; color: var(--text-light); font-size: var(--font-sm); text-align: center; }
 image { display: block; }
 
 .section-title { display: block; margin-bottom: 20rpx; color: var(--text-primary); font-size: 30rpx; font-weight: 650; letter-spacing: 1rpx; }

@@ -1,4 +1,6 @@
 page { background: #F6F4EF; }
+.food-page button { margin: 0; line-height: 1.4; box-sizing: border-box; }
+.food-page button::after { border: 0; }
 .food-page { min-height: 100vh; padding: 30rpx 30rpx calc(72rpx + env(safe-area-inset-bottom)); }
 .food-page.with-tray { padding-bottom: calc(190rpx + env(safe-area-inset-bottom)); }
 .page-intro, .manager-head { display: flex; align-items: flex-start; justify-content: space-between; }
@@ -55,9 +57,20 @@ page { background: #F6F4EF; }
 .order-foot { margin-top: 26rpx; padding-top: 20rpx; border-top: 1rpx solid #EEEAE2; }
 .order-by { color: #94978F; font-size: 21rpx; }
 .order-progress { display: block; margin-top: 5rpx; color: #6E796F; font-size: 19rpx; }
-.order-actions { display: flex; max-width: 65%; flex-wrap: wrap; justify-content: flex-end; gap: 12rpx; }
+.order-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 12rpx; }
 .order-action { display: flex; min-height: 58rpx; padding: 0 22rpx; align-items: center; justify-content: center; border-radius: 16rpx; background: #F0EDE7; color: #6E736C; font-size: 21rpx; font-weight: 600; }
 .order-action.primary { background: #2D332F; color: #FFFFFF; }
+.order-foot { align-items: flex-start; flex-direction: column; gap: 18rpx; }
+.order-action { min-height: 76rpx; font-size: 24rpx; }
+.order-next-action { display: block; margin-top: 22rpx; padding: 18rpx 20rpx; border-radius: 16rpx; background: #F2F4EE; color: #546258; font-size: 24rpx; line-height: 1.6; }
+.order-filter-scroll { margin-top: 24rpx; white-space: nowrap; }
+.order-filter-row { display: inline-flex; gap: 10rpx; }
+.order-filter { display: inline-flex; align-items: center; min-height: 72rpx; padding: 0 22rpx; border-radius: 999rpx; background: #ECE8DF; color: #626B62; font-size: 24rpx; }
+.order-filter.active { background: #303B32; color: #fff; }
+.list-feedback { padding: 28rpx 16rpx; color: #687068; font-size: 24rpx; text-align: center; }
+.list-load-more { width: 100%; margin: 20rpx 0 !important; padding: 24rpx; border-radius: 18rpx; background: #E8EDE5; color: #526158; font-size: 24rpx; }
+.page-subtitle, .group-count, .dish-menu-name, .order-time, .order-by, .order-menu, .empty-desc, .manager-helper { color: #697168; font-size: 24rpx; }
+.order-status, .order-progress { font-size: 23rpx; }
 .manager-head { flex-direction: column; align-items: flex-start; }
 .manager-head .back-action { margin-bottom: 30rpx; }
 .manager-card { margin-top: 26rpx; padding: 30rpx; border: 1rpx solid #E1DDD4; border-radius: 30rpx; background: #FFFFFF; }
@@ -80,6 +93,9 @@ page { background: #F6F4EF; }
 .editing-cover image { width: 100%; height: 100%; }
 .image-upload-state { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(38,43,39,.68); color: #FFFFFF; font-size: 16rpx; }
 .editing-name { flex: 1; margin-left: 18rpx; color: #4A4F49; font-size: 25rpx; }
+.upload-error-copy { display: block; margin-top: 8rpx; color: #965846; font-size: 23rpx; line-height: 1.5; }
+.upload-retry-action { display: inline-flex; min-height: 64rpx; margin: 10rpx 0 0 !important; padding: 10rpx 18rpx; align-items: center; border-radius: 14rpx; background: #E8EDE5; color: #526158; font-size: 23rpx; line-height: 1.4; }
+.upload-retry-action::after { border: 0; }
 .editing-dish-actions { display: flex; align-items: center; gap: 4rpx; }
 .recipe-dish-action { padding: 14rpx; color: #66756B; font-size: 21rpx; }
 .recipe-dish-action.ready { color: #A06048; }

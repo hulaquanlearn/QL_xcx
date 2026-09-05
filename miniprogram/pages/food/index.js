@@ -5,9 +5,11 @@ const mediaService = require('../../services/media');
 const familyMenuPreset = require('../../data/family-menu-preset');
 const dateUtils = require('../../utils/date');
 const createDisplayMethods = require('./modules/display');
+const createListMethods = require('./modules/lists');
 
 Page({
   ...createDisplayMethods({ app, dateUtils, mediaService }),
+  ...createListMethods({ app, api }),
   data: {
     activeTab: 'order',
     activeMenuId: 'all',
@@ -29,6 +31,10 @@ Page({
     recipeDishIndex: -1,
     recipeOriginalKey: '',
     recipeUploading: false,
+    recipeUploadStatus: '',
+    recipeUploadError: '',
+    recipeUploadCheckId: '',
+    recipeUploadRetryPath: '',
     recipeDraft: {
       name: '',
       ingredients: '',
@@ -45,7 +51,20 @@ Page({
       { value: 'dinner', label: '晚餐' },
       { value: 'snack', label: '零食' }
     ],
-    orders: []
+    orders: [],
+    menusLoading: false,
+    ordersLoading: false,
+    ordersError: '',
+    ordersHasMore: true,
+    ordersNextCursor: '',
+    orderStatus: 'all',
+    orderStatuses: [
+      { value: 'all', label: '全部' },
+      { value: 'pending', label: '待接单' },
+      { value: 'accepted', label: '制作中' },
+      { value: 'ready', label: '待确认' },
+      { value: 'completed', label: '已完成' }
+    ]
   },
 
   onLoad(options = {}) {
@@ -61,7 +80,7 @@ Page({
 
   checkLogin() {
     if (!app.globalData.userId || !app.globalData.coupleId) {
-      wx.redirectTo({ url: '/pages/index/index' });
+      wx.reLaunch({ url: '/pages/index/index' });
       return false;
     }
     return true;
@@ -74,48 +93,6 @@ Page({
     return Promise.resolve(request).catch(err => {
       console.error('加载菜单页数据失败：', err);
       wx.showToast({ title: '数据加载失败', icon: 'none' });
-    });
-  },
-
-  loadMenus() {
-    const coupleId = app.globalData.coupleId || app.globalData.userInfo?.coupleId;
-    if (!coupleId) return Promise.resolve([]);
-
-    return api.list('menus', { limit: 200 }).then(rows => {
-      const sourceMenus = rows.map(menu => ({
-        ...menu,
-        dishes: Array.isArray(menu.dishes) ? menu.dishes : []
-      }));
-      const menus = this.prepareRecordsForDisplay(sourceMenus, this.data.menus);
-      const activeMenuId = this.data.activeMenuId !== 'all' && !menus.some(menu => menu._id === this.data.activeMenuId)
-        ? 'all'
-        : this.data.activeMenuId;
-      this.setData({ menus, activeMenuId });
-      return this.resolveRecordImages(sourceMenus).then(resolvedMenus => {
-        this.setData({ menus: resolvedMenus });
-        return resolvedMenus;
-      });
-    }).catch(err => {
-      console.error('获取菜单失败：', err);
-      throw err;
-    });
-  },
-
-  loadOrders() {
-    const coupleId = app.globalData.coupleId || app.globalData.userInfo?.coupleId;
-    if (!coupleId) return Promise.resolve([]);
-
-    return api.list('orders', { limit: 50 }).then(rows => {
-      const sourceOrders = this.formatOrdersTime(rows);
-      const orders = this.prepareRecordsForDisplay(sourceOrders, this.data.orders);
-      this.setData({ orders });
-      return this.resolveRecordImages(sourceOrders).then(resolvedOrders => {
-        this.setData({ orders: resolvedOrders });
-        return resolvedOrders;
-      });
-    }).catch(err => {
-      console.error('获取订单失败：', err);
-      throw err;
     });
   },
 
@@ -395,6 +372,7 @@ Page({
       showRecipeModal: true,
       recipeDishIndex: index,
       recipeOriginalKey: dish.recipeImageKey || '',
+      recipeUploadStatus: '', recipeUploadError: '', recipeUploadCheckId: '', recipeUploadRetryPath: '',
       recipeDraft: {
         name: dish.name,
         ingredients: dish.ingredients || '',
@@ -428,6 +406,7 @@ Page({
       recipeDishIndex: -1,
       recipeOriginalKey: '',
       recipeUploading: false,
+      recipeUploadStatus: '', recipeUploadError: '', recipeUploadCheckId: '', recipeUploadRetryPath: '',
       recipeDraft: {
         name: '',
         ingredients: '',
@@ -455,14 +434,23 @@ Page({
     });
   },
 
-  uploadRecipeImage(tempFilePath) {
+  uploadRecipeImage(tempFilePath, checkId = '') {
     const previousDraftKey = this.data.recipeDraft.recipeImageKey || '';
     const previousDraftImage = this.data.recipeDraft.recipeImage || '';
     this.setData({
       recipeUploading: true,
+      recipeUploadStatus: checkId ? 'moderating' : 'uploading',
+      recipeUploadError: '',
       'recipeDraft.recipeImage': tempFilePath
     });
-    mediaService.upload(tempFilePath, 'recipe').then(result => {
+    const controls = {
+      isCancelled: () => this.pageUnloading,
+      onStatus: event => {
+        if (!this.pageUnloading) this.setData({ recipeUploadStatus: event.status });
+      }
+    };
+    const request = checkId ? api.waitForMediaCheck(checkId, controls) : mediaService.upload(tempFilePath, 'recipe', controls);
+    return request.then(result => {
       this.trackTemporaryMediaKey(result.key);
       if (this.pageUnloading) {
         this.removeTemporaryMediaKey(result.key);
@@ -470,19 +458,31 @@ Page({
       }
       this.setData({
         'recipeDraft.recipeImage': tempFilePath,
-        'recipeDraft.recipeImageKey': result.key
+        'recipeDraft.recipeImageKey': result.key,
+        recipeUploadCheckId: '', recipeUploadRetryPath: '', recipeUploadError: '', recipeUploadStatus: 'ready'
       });
       if (previousDraftKey && previousDraftKey !== this.data.recipeOriginalKey && previousDraftKey !== result.key) {
         this.removeTemporaryMediaKey(previousDraftKey);
       }
     }).catch(error => {
       if (!this.pageUnloading) {
-        this.setData({ 'recipeDraft.recipeImage': previousDraftImage });
+        this.setData({
+          'recipeDraft.recipeImage': previousDraftImage,
+          recipeUploadStatus: 'failed',
+          recipeUploadError: error.pending ? '审核还未结束，可继续查询；当前说明图未替换' : (error.message || '上传失败，当前说明图未替换'),
+          recipeUploadCheckId: error.rejected ? '' : (error.checkId || checkId),
+          recipeUploadRetryPath: error.rejected ? '' : tempFilePath
+        });
         wx.showToast({ title: error.message || '说明图上传失败', icon: 'none' });
       }
     }).finally(() => {
       if (!this.pageUnloading) this.setData({ recipeUploading: false });
     });
+  },
+
+  retryRecipeUpload() {
+    if (this.data.recipeUploading || !this.data.recipeUploadRetryPath) return;
+    return this.uploadRecipeImage(this.data.recipeUploadRetryPath, this.data.recipeUploadCheckId);
   },
 
   clearRecipeImage() {
@@ -491,7 +491,8 @@ Page({
     if (draftKey && draftKey !== this.data.recipeOriginalKey) this.removeTemporaryMediaKey(draftKey);
     this.setData({
       'recipeDraft.recipeImage': '',
-      'recipeDraft.recipeImageKey': ''
+      'recipeDraft.recipeImageKey': '',
+      recipeUploadStatus: '', recipeUploadError: '', recipeUploadCheckId: '', recipeUploadRetryPath: ''
     });
   },
 
@@ -528,7 +529,7 @@ Page({
     });
   },
 
-  uploadDishImage(tempFilePath, index) {
+  uploadDishImage(tempFilePath, index, checkId = '') {
     if (!app.globalData.coupleId) return;
     const target = this.data.dishes[index];
     if (!target) return;
@@ -539,17 +540,24 @@ Page({
     this.setData({
       uploading: true,
       dishes: this.data.dishes.map(dish => dish.id === targetId
-        ? { ...dish, image: tempFilePath, imageUploading: true }
+        ? { ...dish, image: tempFilePath, imageUploading: true, imageUploadStatus: checkId ? 'moderating' : 'uploading', imageUploadError: '' }
         : dish)
     });
-    mediaService.upload(tempFilePath, 'dish').then(result => {
+    const controls = {
+      isCancelled: () => this.pageUnloading,
+      onStatus: event => {
+        if (!this.pageUnloading) this.setData({ dishes: this.data.dishes.map(dish => dish.id === targetId ? { ...dish, imageUploadStatus: event.status } : dish) });
+      }
+    };
+    const request = checkId ? api.waitForMediaCheck(checkId, controls) : mediaService.upload(tempFilePath, 'dish', controls);
+    return request.then(result => {
       this.trackTemporaryMediaKey(result.key);
       if (this.pageUnloading || !this.data.dishes.some(dish => dish.id === targetId)) {
         this.removeTemporaryMediaKey(result.key);
         return;
       }
       const dishes = this.data.dishes.map(dish => dish.id === targetId
-        ? { ...dish, imageKey: result.key, image: tempFilePath, imageUploading: false }
+        ? { ...dish, imageKey: result.key, image: tempFilePath, imageUploading: false, imageUploadStatus: 'ready', imageUploadError: '', imageUploadCheckId: '', imageUploadRetryPath: '' }
         : dish);
       this.setData({ dishes });
       if (previousKey && previousKey !== result.key) this.removeTemporaryMediaKey(previousKey);
@@ -558,7 +566,12 @@ Page({
       if (!this.pageUnloading) {
         this.setData({
           dishes: this.data.dishes.map(dish => dish.id === targetId
-            ? { ...dish, imageKey: previousKey, image: previousImage, imageUploading: false }
+            ? {
+                ...dish, imageKey: previousKey, image: previousImage, imageUploading: false, imageUploadStatus: 'failed',
+                imageUploadError: err.pending ? '审核未结束，当前图片未替换' : (err.message || '上传失败，当前图片未替换'),
+                imageUploadCheckId: err.rejected ? '' : (err.checkId || checkId),
+                imageUploadRetryPath: err.rejected ? '' : tempFilePath
+              }
             : dish)
         });
         wx.showToast({ title: err.message || '图片上传失败', icon: 'none' });
@@ -567,6 +580,13 @@ Page({
       this.pendingImageUploads = Math.max(0, (this.pendingImageUploads || 1) - 1);
       if (!this.pageUnloading) this.setData({ uploading: this.pendingImageUploads > 0 });
     });
+  },
+
+  retryDishUpload(e) {
+    const index = Number(e.currentTarget.dataset.index);
+    const dish = this.data.dishes[index];
+    if (!dish || dish.imageUploading || !dish.imageUploadRetryPath) return;
+    return this.uploadDishImage(dish.imageUploadRetryPath, index, dish.imageUploadCheckId || '');
   },
 
   uploadMenu() {
@@ -757,12 +777,12 @@ Page({
     const orderId = e.currentTarget.dataset.id;
     wx.showModal({
       title: '已经做好了？',
-      content: '确认后会通知下单人来确认收到。',
+      content: '订单将更新为待确认，下单人收到后可结束订单。',
       confirmText: '已做好',
       success: res => {
         if (!res.confirm) return;
         api.readyOrder(orderId).then(() => {
-          wx.showToast({ title: '已通知 TA', icon: 'success' });
+          wx.showToast({ title: '已更新为待确认', icon: 'success' });
           return this.loadOrders();
         }).catch(err => {
           wx.showToast({ title: err.message || '操作失败', icon: 'none' });

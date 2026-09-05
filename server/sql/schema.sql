@@ -75,6 +75,15 @@ CREATE TABLE IF NOT EXISTS albums (
   CONSTRAINT fk_albums_task FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE SET NULL,
   INDEX idx_albums (couple_id,created_at), INDEX idx_albums_task (task_id)
 ) ENGINE=InnoDB;
+CREATE TABLE IF NOT EXISTS album_favorites (
+  album_id BIGINT UNSIGNED NOT NULL,
+  user_id BIGINT UNSIGNED NOT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (album_id,user_id),
+  INDEX idx_album_favorites_user (user_id,album_id),
+  CONSTRAINT fk_album_favorites_album FOREIGN KEY (album_id) REFERENCES albums(id) ON DELETE CASCADE,
+  CONSTRAINT fk_album_favorites_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
 CREATE TABLE IF NOT EXISTS menus (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY, couple_id BIGINT UNSIGNED NOT NULL, author_id BIGINT UNSIGNED NOT NULL,
   name VARCHAR(100) NOT NULL, meal_type ENUM('breakfast','lunch','dinner','snack') NOT NULL DEFAULT 'dinner', dishes JSON NOT NULL, image_url VARCHAR(1000) NULL,

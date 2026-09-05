@@ -1,4 +1,4 @@
-<view class="container home-page">
+<view class="container home-page {{!isLoggedIn ? 'home-login' : ''}}">
   <view wx:if="{{!isLoggedIn}}" class="login-shell">
     <view class="login-main">
       <view class="login-brand">
@@ -44,7 +44,7 @@
     <block wx:else>
       <view class="days-card slide-up" bindtap="goToAnniversary">
         <view class="days-card-head">
-          <text class="days-label">{{pinnedAnniversary ? pinnedAnniversary.title : '共同生活'}}</text>
+          <text class="days-label">{{pinnedAnniversary ? pinnedAnniversary.title : '我们的纪念日'}}</text>
           <text class="days-link">查看纪念日</text>
         </view>
         <view class="pair-row">
@@ -53,16 +53,15 @@
             <text wx:else class="avatar-fallback">{{userInitial}}</text>
           </view>
           <view class="days-center">
-            <text class="days-number">{{loveDays}}</text>
-            <text class="days-unit">天</text>
-            <text class="days-date" wx:if="{{pinnedAnniversary}}">始于 {{pinnedAnniversary.date}}</text>
+            <block wx:if="{{pinnedAnniversary}}"><text class="days-number">{{loveDays}}</text><text class="days-unit">{{daysUnit}}</text><text class="days-date">{{pinnedAnniversary.date}}</text></block>
+            <text wx:else class="days-setup">设置纪念日<text class="days-date">选一个值得记住的日子</text></text>
           </view>
           <view class="avatar">
             <image wx:if="{{partnerAvatar}}" class="avatar-image" src="{{partnerAvatar}}" mode="aspectFill"></image>
             <text wx:else class="avatar-fallback">{{partnerInitial}}</text>
           </view>
         </view>
-        <text class="avatar-tip">轻触自己的头像可以更换照片</text>
+        <text class="avatar-tip">{{avatarStatus || '轻触自己的头像可以更换照片'}}</text>
       </view>
 
       <view class="quick-section">
@@ -83,15 +82,9 @@
         <view wx:if="{{albumList.length > 0}}" class="album-grid">
           <view wx:for="{{albumList}}" wx:key="_id" class="photo-item"><image class="photo-img" src="{{item.imgUrl}}" mode="aspectFill" binderror="imgError"></image></view>
         </view>
-        <view wx:else class="album-empty"><text class="album-empty-title">还没有照片</text><text class="album-empty-desc">从一张喜欢的照片开始</text></view>
+        <view wx:else class="album-empty"><text class="album-empty-title">还没有照片</text><text class="album-empty-desc">从一张喜欢的照片开始</text><text class="album-empty-action">去相册添加照片 ›</text></view>
       </view>
     </block>
 
-    <view class="period-entry" bindtap="goToPeriod"><view><text class="section-title">经期记录</text><text class="section-note">留意身体的节奏 · 默认仅本人可见</text></view><text>›</text></view>
-
-    <view class="bottom-nav">
-      <view class="nav-item active"><image class="nav-icon" src="/images/icons/首页.png" mode="aspectFit"></image><text>首页</text></view>
-      <view class="nav-item" bindtap="goToMine"><image class="nav-icon" src="/images/icons/我的.png" mode="aspectFit"></image><text>我的</text></view>
-    </view>
   </view>
 </view>

@@ -17,6 +17,7 @@ const {
 const contentSafety = require('./content-safety');
 const mediaChecks = require('./media-checks');
 const { version } = require('../package.json');
+const { resolveThumbnail } = require('./services/media-thumbnails');
 
 const app = express();
 app.set('trust proxy', 1);
@@ -144,8 +145,11 @@ app.get('/api/couple-space/media/file/:coupleId/:filename', requireAuth, asyncHa
   } catch {
     return res.status(404).json({ success: false, msg: '图片不存在' });
   }
+  const displayPath = req.query.variant === 'thumbnail'
+    ? (await resolveThumbnail(coupleId, filename) || filePath)
+    : filePath;
   res.set('Cache-Control', 'private, max-age=3600');
-  return res.sendFile(filePath);
+  return res.sendFile(displayPath);
 }));
 
 app.delete('/api/couple-space/media/file/:coupleId/:filename', requireAuth, asyncHandler(async (req, res) => {

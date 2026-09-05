@@ -1,11 +1,12 @@
 const api = require('../../services/api');
 const auth = require('../../services/auth');
 const helper = require('../../utils/period');
+const { syncTabBar } = require('../../services/navigation');
 const confirm = (title, content) => new Promise(resolve => wx.showModal({ title, content, success: result => resolve(result.confirm), fail: () => resolve(false) }));
 
 Page({
   data: {
-    view: 'self', available: false, loading: false, error: '', busy: false,
+    view: '', role: '', available: false, loading: false, error: '', busy: false,
     records: [], summary: {}, sharing: false, today: '', month: '', cells: [],
     weekdays: ['一', '二', '三', '四', '五', '六', '日'],
     showEditor: false, editId: '', form: {}, flows: helper.flows, pains: helper.pains,
@@ -14,6 +15,7 @@ Page({
   onShow() {
     this._visible = true;
     if (!auth.getToken()) { wx.reLaunch({ url: '/pages/index/index' }); return; }
+    syncTabBar(this, 1);
     this.load();
   },
   onHide() { this.clearPrivateState(); },
@@ -21,17 +23,18 @@ Page({
   clearPrivateState() {
     this._visible = false;
     this._sequence = (this._sequence || 0) + 1;
-    this.setData({ records: [], summary: {}, cells: [], form: {}, symptomOptions: [], showEditor: false, available: false, sharing: false });
+    this.setData({ role: '', view: '', records: [], summary: {}, cells: [], form: {}, symptomOptions: [], showEditor: false, available: false, sharing: false });
   },
   onPullDownRefresh() { this.load().finally(() => wx.stopPullDownRefresh()); },
   async load() {
     const sequence = this._sequence = (this._sequence || 0) + 1;
-    this.setData({ loading: true, error: '' });
+    this.setData({ loading: true, error: '', role: '', view: '', available: false, records: [], summary: {}, cells: [], sharing: false, showEditor: false, form: {} });
     try {
-      const result = await api.periods(this.data.view);
+      const result = await api.periods();
       if (!this._visible || sequence !== this._sequence) return;
+      if (!['female', 'male', 'unspecified'].includes(result.role)) throw new Error('请先部署 v2.10.1 服务端后使用经期功能');
       const month = this.data.month || (result.today || '').slice(0, 7);
-      this.setData({ available: Boolean(result.available), sharing: Boolean(result.sharing), today: result.today || '',
+      this.setData({ role: result.role, view: result.role === 'female' ? 'self' : 'partner', available: Boolean(result.available), sharing: result.role === 'female' && Boolean(result.sharing), today: result.today || '',
         records: helper.decorate(result.records || [], result.today), summary: result.summary || {}, month,
         cells: result.available ? helper.calendar(month, result.records || [], result.today, result.summary?.predictedDate) : [] });
     } catch (error) {
@@ -40,11 +43,7 @@ Page({
       if (this._visible && sequence === this._sequence) this.setData({ loading: false });
     }
   },
-  switchView(event) {
-    if (this.data.busy || event.currentTarget.dataset.view === this.data.view) return;
-    this.setData({ view: event.currentTarget.dataset.view, records: [], summary: {}, cells: [], available: false, sharing: false, showEditor: false, form: {}, month: '' });
-    this.load();
-  },
+  openProfile() { wx.switchTab({ url: '/pages/mine/index' }); },
   changeMonth(event) {
     const month = helper.moveMonth(this.data.month, Number(event.currentTarget.dataset.delta));
     this.setData({ month, cells: helper.calendar(month, this.data.records, this.data.today, this.data.summary.predictedDate) });

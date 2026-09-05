@@ -4,6 +4,7 @@ const { checkText } = require('../content-safety');
 const { assertMediaKeyForCouple, collectMediaKeys, removeMediaKeysIfUnreferenced } = require('../media');
 const { ApiError, asyncHandler } = require('../utils');
 const { requireCoupleId, requireCoupleTask } = require('./couple-access');
+const { listOptions } = require('../services/resource-list');
 
 const router = express.Router();
 
@@ -35,8 +36,19 @@ async function insertPhotos(req, res, task = null) {
   const connection = await pool.getConnection();
   try {
     await connection.beginTransaction();
+    // Serialize retries for this uploader. A lost HTTP response must not create
+    // a second album row for the same approved media key.
+    await connection.query('SELECT id FROM users WHERE id=? AND couple_id=? FOR UPDATE', [req.userRow.id, coupleId]);
     const ids = [];
     for (const key of keys) {
+      const [existing] = await connection.query(
+        'SELECT id FROM albums WHERE couple_id=? AND author_id=? AND storage_key=? AND task_id<=>? LIMIT 1 FOR UPDATE',
+        [coupleId, req.userRow.id, key, task?.id || null]
+      );
+      if (existing[0]) {
+        ids.push(String(existing[0].id));
+        continue;
+      }
       const [created] = await connection.query(
         `INSERT INTO albums(couple_id,author_id,task_id,image_url,storage_key,description,photo_date)
          VALUES(?,?,?,?,?,?,?)`,
@@ -59,6 +71,53 @@ router.post('/albums/task-photos', asyncHandler(async (req, res) => {
   const coupleId = requireCoupleId(req);
   const task = await requireCoupleTask(pool, coupleId, req.body?.taskId);
   return insertPhotos(req, res, task);
+}));
+
+router.get('/albums/months', asyncHandler(async (req, res) => {
+  const coupleId = requireCoupleId(req);
+  const { conditions, params } = listOptions('album', {
+    favoriteOnly: req.query.favoriteOnly,
+    taskIds: req.query.taskIds
+  }, coupleId, req.userRow.id);
+  const [rows] = await pool.query(
+    `SELECT DATE_FORMAT(COALESCE(r.photo_date,r.created_at),'%Y-%m') month,COUNT(*) count
+     FROM albums r WHERE ${conditions.join(' AND ')}
+     GROUP BY month ORDER BY month DESC`,
+    params
+  );
+  res.json({ success: true, data: rows.map(row => ({ month: row.month, count: Number(row.count) })) });
+}));
+
+router.patch('/albums/:id/favorite', asyncHandler(async (req, res) => {
+  const coupleId = requireCoupleId(req);
+  const favorite = req.body?.favorite;
+  if (typeof favorite !== 'boolean' || !/^\d+$/.test(String(req.params.id))) {
+    throw new ApiError(400, '收藏参数无效');
+  }
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+    const [photos] = await connection.query(
+      'SELECT id FROM albums WHERE id=? AND couple_id=? FOR UPDATE',
+      [req.params.id, coupleId]
+    );
+    if (!photos[0]) throw new ApiError(404, '照片不存在');
+    if (favorite) {
+      await connection.query(
+        'INSERT INTO album_favorites(album_id,user_id) VALUES(?,?) ON DUPLICATE KEY UPDATE user_id=VALUES(user_id)',
+        [req.params.id, req.userRow.id]
+      );
+    } else {
+      await connection.query('DELETE FROM album_favorites WHERE album_id=? AND user_id=?', [req.params.id, req.userRow.id]);
+    }
+    await connection.commit();
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
+  res.json({ success: true, data: { id: String(req.params.id), favorite } });
 }));
 
 router.delete('/albums/batch', asyncHandler(async (req, res) => {

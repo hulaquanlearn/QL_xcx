@@ -74,19 +74,47 @@ function delay(milliseconds) {
   return new Promise(resolve => setTimeout(resolve, milliseconds));
 }
 
-function waitForMediaCheck(checkId, remaining = 120) {
+function assertUploadActive(options) {
+  if (options.isCancelled && options.isCancelled()) {
+    const error = new Error('已停止等待图片审核');
+    error.cancelled = true;
+    throw error;
+  }
+}
+
+function waitForMediaCheck(checkId, options = {}, remaining = 120) {
+  try { assertUploadActive(options); } catch (error) { error.checkId = checkId; return Promise.reject(error); }
+  if (options.onStatus) options.onStatus({ status: 'moderating', checkId });
   return request(`/content-safety/check/${encodeURIComponent(checkId)}`).then(result => {
+    assertUploadActive(options);
     if (result.status === 'approved' && result.key) return result;
-    if (result.status !== 'pending') throw new Error(result.message || '图片未通过内容安全检测');
-    if (remaining <= 0) throw new Error('图片仍在审核中，请稍后重试');
-    return delay(1500).then(() => waitForMediaCheck(checkId, remaining - 1));
+    if (result.status !== 'pending') {
+      const error = new Error(result.message || '图片未通过内容安全检测');
+      error.rejected = true;
+      throw error;
+    }
+    if (remaining <= 0) {
+      const error = new Error('图片仍在审核中，可稍后继续查询');
+      error.pending = true;
+      throw error;
+    }
+    return delay(1500).then(() => waitForMediaCheck(checkId, options, remaining - 1));
+  }).catch(error => {
+    error.checkId = checkId;
+    throw error;
   });
 }
 
-function uploadWithReview(path, data) {
-  return safetyRequest(path, { method: 'POST', data, timeout: 60000 }).then(result =>
-    result.key ? result : waitForMediaCheck(result.checkId)
-  );
+function uploadWithReview(path, data, options = {}) {
+  return Promise.resolve().then(() => {
+    assertUploadActive(options);
+    if (options.onStatus) options.onStatus({ status: 'uploading' });
+    return safetyRequest(path, { method: 'POST', data, timeout: 60000 });
+  }).then(result => {
+    if (result.key) return result;
+    if (!result.checkId) throw new Error('服务器未返回图片审核编号');
+    return waitForMediaCheck(result.checkId, options);
+  });
 }
 
 module.exports = {
@@ -106,8 +134,11 @@ module.exports = {
   profile: data => safetyRequest('/profile', { method: 'PATCH', data }),
   bindPartner: inviteCode => request('/partner/bind', { method: 'POST', data: { inviteCode } }),
   getAvatars: () => request('/avatars'),
-  uploadAvatarFile: data => uploadWithReview('/avatars/file', data),
-  uploadMediaFile: data => uploadWithReview('/media/file', data),
+  uploadAvatarFile: (data, options) => uploadWithReview('/avatars/file', data, options),
+  uploadMediaFile: (data, options) => uploadWithReview('/media/file', data, options),
+  waitForMediaCheck,
+  setAlbumFavorite: (id, favorite) => request(`/resources/albums/${encodeURIComponent(id)}/favorite`, { method: 'PATCH', data: { favorite } }),
+  albumMonths: (favoriteOnly = false, taskId = '') => request(`/resources/albums/months?favoriteOnly=${favoriteOnly ? '1' : '0'}${taskId ? `&taskIds=${encodeURIComponent(taskId)}` : ''}`),
   deleteMediaFile: (coupleId, filename) => request(`/media/file/${encodeURIComponent(coupleId)}/${encodeURIComponent(filename)}`, { method: 'DELETE' }),
   list: (resource, params = {}) => {
     const query = Object.keys(params).map(k => `${encodeURIComponent(k)}=${encodeURIComponent(params[k])}`).join('&');
@@ -141,7 +172,8 @@ module.exports = {
   }),
   deleteShopping: id => request(`/planning/week/shopping/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   timeline: (limit = 50) => request(`/timeline?limit=${encodeURIComponent(limit)}`),
-  periods: (view = 'self') => request(`/periods?view=${encodeURIComponent(view)}`),
+  timelinePage: (params = {}) => request(`/timeline?${Object.entries({ ...params, paged: 1 }).map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`).join('&')}`),
+  periods: () => request('/periods'),
   savePeriod: (id, data) => request(`/periods${id ? '/' + encodeURIComponent(id) : ''}`, { method: id ? 'PUT' : 'POST', data }),
   deletePeriod: id => request(`/periods/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   sharePeriods: shareWithPartner => request('/periods/settings', { method: 'PATCH', data: { shareWithPartner } }),

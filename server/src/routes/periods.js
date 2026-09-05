@@ -7,23 +7,32 @@ const router = express.Router();
 
 router.use(requireAuth);
 router.use((_req, res, next) => { res.set('Cache-Control', 'no-store'); next(); });
+router.use((req, _res, next) => {
+  if (!['GET', 'HEAD'].includes(req.method) && req.userRow.gender !== 'female') {
+    return next(new ApiError(403, '仅女方账号可管理经期记录和共享设置'));
+  }
+  next();
+});
 
 router.get('/', asyncHandler(async (req, res) => {
-  const own = req.query.view !== 'partner';
+  const role = req.userRow.gender === 'female' ? 'female' : req.userRow.gender === 'male' ? 'male' : 'unspecified';
+  if (role === 'unspecified') return res.json({ success: true, data: { available: false, role } });
+  // The authenticated profile decides access, never a client-supplied view or gender.
+  const own = role === 'female';
   let ownerId = req.userRow.id;
   let sharing = false;
   let rows;
   if (!own) {
-    if (!req.userRow.couple_id) return res.json({ success: true, data: { available: false } });
+    if (!req.userRow.couple_id) return res.json({ success: true, data: { available: false, role } });
     const [shared] = await pool.query(
       `SELECT u.id owner_id,r.id,r.start_date,r.end_date
        FROM users u JOIN period_settings s ON s.user_id=u.id
        LEFT JOIN period_records r ON r.user_id=u.id
-       WHERE u.couple_id=? AND u.id<>? AND s.share_with_partner=1 AND s.shared_couple_id=u.couple_id
+       WHERE u.couple_id=? AND u.id<>? AND u.gender='female' AND s.share_with_partner=1 AND s.shared_couple_id=u.couple_id
        ORDER BY r.start_date DESC LIMIT 240`,
       [req.userRow.couple_id, req.userRow.id]
     );
-    if (!shared[0]) return res.json({ success: true, data: { available: false } });
+    if (!shared[0]) return res.json({ success: true, data: { available: false, role } });
     rows = shared.filter(row => row.id != null);
   } else {
     const [settings] = await pool.query('SELECT share_with_partner,shared_couple_id FROM period_settings WHERE user_id=?', [ownerId]);
@@ -35,7 +44,7 @@ router.get('/', asyncHandler(async (req, res) => {
   }
   const records = rows.map(row => publicRecord(row, own));
   const today = todayDate();
-  res.json({ success: true, data: { available: true, own, sharing, today, records, summary: summarize(records, today) } });
+  res.json({ success: true, data: { available: true, role, own, sharing, today, records, summary: summarize(records, today) } });
 }));
 
 router.patch('/settings', asyncHandler(async (req, res) => {

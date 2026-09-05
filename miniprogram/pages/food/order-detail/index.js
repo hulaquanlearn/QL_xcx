@@ -136,7 +136,7 @@ Page({
       success: result => {
         if (!result.confirm) return;
         api.readyOrder(this.data.orderId).then(() => {
-          wx.showToast({ title: '已通知 TA', icon: 'success' });
+          wx.showToast({ title: '已更新为待确认', icon: 'success' });
           return this.loadOrder();
         }).catch(error => wx.showToast({ title: error.message || '操作失败', icon: 'none' }));
       }
